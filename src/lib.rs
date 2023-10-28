@@ -69,7 +69,7 @@ mod test {
         test!(
             code_blocks,
             "```\nconsole.log('Hello, mrkdwn!')\n```",
-            r#"{ "blocks": [ { "text": { "text": "```\nconsole.log('Hello, mrkdwn!')\n```", "type": "mrkdwn" }, "type": "section" } ] }"#
+            r#"{ "blocks": [ { "text": { "text": "```\nconsole.log('Hello, mrkdwn!')\n```\n", "type": "mrkdwn" }, "type": "section" } ] }"#
         );
         test!(
             headings,
@@ -136,8 +136,10 @@ Hello, ~~Markdown~~ **mrkdwn**! and _markdown_.
 ```
 console.log('Hello, mrkdwn!')
 ```
+
+Another paragraph.
 "#,
-            r#"{ "blocks": [{"text":{"emoji":true,"text":"Heading 1","type":"plain_text"},"type":"header"},{"type":"divider"},{"text":{"emoji":true,"text":"Heading 2","type":"plain_text"},"type":"header"},{"text":{"emoji":true,"text":"Heading 3","type":"plain_text"},"type":"header"},{"text":{"text":"Hello, ~Markdown~ *mrkdwn*! and _markdown_.\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"`mrkdwn` is text formatting markup style in <https://slack.com/|Slack>.\n","type":"mrkdwn"},"type":"section"},{"type":"divider"},{"text":{"text":"•   First\n    •   Second\n        •   Third\n    •   Fourth\n        •   Fifth\n        •   Sixth\n\n•   Seventh\n\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"1.  Ordered list 1\n    •   Ordered list 1-1\n        •   Ordered list 1-2\n\n2.  Ordered list 2\n    1.  Ordered list 2-1\n    2.  Ordered list 2-2\n\n3.  Ordered list 3\n\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"> _This is blockquote._\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"```\nconsole.log('Hello, mrkdwn!')\n```","type":"mrkdwn"},"type":"section"}] }"#
+            r#"{ "blocks": [{"text":{"emoji":true,"text":"Heading 1","type":"plain_text"},"type":"header"},{"type":"divider"},{"text":{"emoji":true,"text":"Heading 2","type":"plain_text"},"type":"header"},{"text":{"emoji":true,"text":"Heading 3","type":"plain_text"},"type":"header"},{"text":{"text":"Hello, ~Markdown~ *mrkdwn*! and _markdown_.\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"`mrkdwn` is text formatting markup style in <https://slack.com/|Slack>.\n","type":"mrkdwn"},"type":"section"},{"type":"divider"},{"text":{"text":"•   First\n    •   Second\n        •   Third\n    •   Fourth\n        •   Fifth\n        •   Sixth\n\n•   Seventh\n\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"1.  Ordered list 1\n    •   Ordered list 1-1\n        •   Ordered list 1-2\n\n2.  Ordered list 2\n    1.  Ordered list 2-1\n    2.  Ordered list 2-2\n\n3.  Ordered list 3\n\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"> _This is blockquote._\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"```\nconsole.log('Hello, mrkdwn!')\n```\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"Another paragraph.\n","type":"mrkdwn"},"type":"section"}] }"#
         );
     }
 
@@ -237,6 +239,8 @@ Hello, ~~Markdown~~ **mrkdwn**! and _markdown_.
 ```
 console.log('Hello, mrkdwn!')
 ```
-"#, "*Heading 1*\\n\\n*Heading 2*\\n\\n*Heading 3*\\n\\nHello, ~Markdown~ *mrkdwn*! and _markdown_.\\n`mrkdwn` is text formatting markup style in <https://slack.com/|Slack>.\\n\\n----------\\n•   First\\n    •   Second\\n        •   Third\\n    •   Fourth\\n        •   Fifth\\n        •   Sixth\\n\\n•   Seventh\\n\\n1.  Ordered list 1\\n    •   Ordered list 1-1\\n        •   Ordered list 1-2\\n\\n2.  Ordered list 2\\n    1.  Ordered list 2-1\\n    2.  Ordered list 2-2\\n\\n3.  Ordered list 3\\n\\n> _This is blockquote._\\n```\\nconsole.log('Hello, mrkdwn!')\\n```");
+
+Another paragraph.
+"#, "*Heading 1*\\n\\n*Heading 2*\\n\\n*Heading 3*\\n\\nHello, ~Markdown~ *mrkdwn*! and _markdown_.\\n`mrkdwn` is text formatting markup style in <https://slack.com/|Slack>.\\n\\n----------\\n•   First\\n    •   Second\\n        •   Third\\n    •   Fourth\\n        •   Fifth\\n        •   Sixth\\n\\n•   Seventh\\n\\n1.  Ordered list 1\\n    •   Ordered list 1-1\\n        •   Ordered list 1-2\\n\\n2.  Ordered list 2\\n    1.  Ordered list 2-1\\n    2.  Ordered list 2-2\\n\\n3.  Ordered list 3\\n\\n> _This is blockquote._\\n```\\nconsole.log('Hello, mrkdwn!')\\n```\\nAnother paragraph.");
     }
 }
