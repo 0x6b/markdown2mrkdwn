@@ -9,3 +9,4 @@ path = "src/lib.rs"
 
 [dependencies]
 markdown = "1.0.0-alpha.14"
+serde_json = { version = "1.0.107", features = [] }
