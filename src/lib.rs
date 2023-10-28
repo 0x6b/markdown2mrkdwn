@@ -7,7 +7,7 @@ use markdown::{
     },
     to_mdast, ParseOptions,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 
 struct Mrkdwn<'a> {
     text: &'a str,
@@ -21,9 +21,11 @@ enum Block {
     Section(String),
 }
 
-impl Block {
-    fn into_json(self) -> serde_json::Value {
-        match self {
+impl TryFrom<Block> for Value {
+    type Error = Box<dyn Error>;
+
+    fn try_from(block: Block) -> Result<Self, Self::Error> {
+        Ok(match block {
             Block::Header(text) => json!({
                 "type": "header",
                 "text": {
@@ -42,7 +44,7 @@ impl Block {
                     "text": text,
                 }
             }),
-        }
+        })
     }
 }
 
@@ -52,54 +54,52 @@ impl<'a> Mrkdwn<'a> {
     }
 
     fn mrkdwnify(&mut self) -> Result<String, Box<dyn Error>> {
-        let result = match to_mdast(self.text, &ParseOptions::gfm())?.children() {
-            None => Err("no input?".to_string()),
-            Some(nodes) => Ok(self
-                .parse(nodes)
-                .trim()
-                .replace('"', "\\\"")
-                .replace('&', "&amp;")
-                .replace('\n', "\\n")
-                .trim_end_matches("\\n")
-                .to_string()),
-        };
-
-        Ok(result?)
+        Ok(self
+            .parse(
+                to_mdast(self.text, &ParseOptions::gfm())
+                    .map_err(|e| e.to_string())?
+                    .children()
+                    .ok_or("no input?")?,
+            )
+            .trim()
+            .replace('"', "\\\"")
+            .replace('&', "&amp;")
+            .replace('\n', "\\n")
+            .trim_end_matches("\\n")
+            .to_string())
     }
 
     fn blockify(&mut self) -> Result<String, Box<dyn Error>> {
         use Block::*;
         use Node::*;
 
-        let result = match to_mdast(self.text, &ParseOptions::gfm())?.children() {
-            None => Err("no input?".to_string()),
-            Some(nodes) => Ok(nodes
-                .iter()
-                .flat_map(|child| match child {
-                    BlockQuote(n) => vec![Section(self.surround_nodes_with(&n.children, "> ", ""))],
-                    Break(_) => vec![Section("\n".to_string())],
-                    Code(n) => vec![Section(Self::surround_with(&n.value, "```\n", "\n```"))],
-                    Delete(n) => vec![Section(self.surround_nodes_with(&n.children, "~", "~"))],
-                    Emphasis(n) => vec![Section(self.surround_nodes_with(&n.children, "_", "_"))],
-                    Heading(n) => match n.depth {
-                        1 => vec![Header(self.parse(&n.children)), Divider],
-                        _ => vec![Header(self.parse(&n.children))],
-                    },
-                    InlineCode(n) => vec![Section(Self::surround_with(&n.value, "`", "`"))],
-                    Link(n) => vec![Section(format!("<{}|{}>", &n.url, self.parse(&n.children)))],
-                    List(n) => vec![Section(self.handle_list(n))],
-                    ListItem(n) => vec![Section(self.parse(&n.children).to_string())],
-                    Paragraph(n) => vec![Section(self.surround_nodes_with(&n.children, "", "\n"))],
-                    Strong(n) => vec![Section(self.surround_nodes_with(&n.children, "*", "*"))],
-                    Text(n) => vec![Section(n.value.to_string())],
-                    ThematicBreak(_) => vec![Divider],
-                    _ => vec![Section("".to_string())],
-                })
-                .collect::<Vec<_>>()),
-        }?
-        .into_iter()
-        .map(|block| block.into_json())
-        .collect::<Vec<_>>();
+        let result: Vec<Value> = to_mdast(self.text, &ParseOptions::gfm())
+            .map_err(|e| e.to_string())?
+            .children()
+            .ok_or("no input?")?
+            .iter()
+            .flat_map(|child| match child {
+                BlockQuote(n) => vec![Section(self.surround_nodes_with(&n.children, "> ", ""))],
+                Break(_) => vec![Section("\n".to_string())],
+                Code(n) => vec![Section(Self::surround_with(&n.value, "```\n", "\n```"))],
+                Delete(n) => vec![Section(self.surround_nodes_with(&n.children, "~", "~"))],
+                Emphasis(n) => vec![Section(self.surround_nodes_with(&n.children, "_", "_"))],
+                Heading(n) => match n.depth {
+                    1 => vec![Header(self.parse(&n.children)), Divider],
+                    _ => vec![Header(self.parse(&n.children))],
+                },
+                InlineCode(n) => vec![Section(Self::surround_with(&n.value, "`", "`"))],
+                Link(n) => vec![Section(format!("<{}|{}>", &n.url, self.parse(&n.children)))],
+                List(n) => vec![Section(self.handle_list(n))],
+                ListItem(n) => vec![Section(self.parse(&n.children).to_string())],
+                Paragraph(n) => vec![Section(self.surround_nodes_with(&n.children, "", "\n"))],
+                Strong(n) => vec![Section(self.surround_nodes_with(&n.children, "*", "*"))],
+                Text(n) => vec![Section(n.value.to_string())],
+                ThematicBreak(_) => vec![Divider],
+                _ => vec![Section("".to_string())],
+            })
+            .flat_map(|block| block.try_into())
+            .collect::<_>();
 
         Ok(format!("{{ blocks: {} }}", serde_json::to_string(&result).unwrap()))
     }
