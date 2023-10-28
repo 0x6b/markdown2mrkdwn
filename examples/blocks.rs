@@ -3,10 +3,8 @@ use markdown2mrkdwn::Mrkdwn;
 fn main() {
     println!(
         "{}",
-        Mrkdwn::from(
-            "# heading1 \n## heading 2\n- First\n    - Second\n- Third\n```\n$ cargo run --example main\n```\n"
-        )
-        .blockify()
-        .unwrap()
+        Mrkdwn::from(std::fs::read_to_string("examples/sample.md").unwrap().as_str())
+            .blockify()
+            .unwrap()
     );
 }
