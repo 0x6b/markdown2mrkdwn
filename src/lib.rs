@@ -1,9 +1,12 @@
-use std::error::Error;
-use std::ops::Add;
+use std::{error::Error, ops::Add};
 
-use markdown::mdast::List;
-use markdown::mdast::Node::ListItem;
-use markdown::{mdast::Node, to_mdast, ParseOptions};
+use markdown::{
+    mdast::{
+        List,
+        Node::{self, ListItem},
+    },
+    to_mdast, ParseOptions,
+};
 use serde_json::json;
 
 struct Mrkdwn<'a> {
@@ -43,44 +46,69 @@ impl Block {
     }
 }
 
-impl<'a> TryFrom<Mrkdwn<'a>> for Vec<Block> {
-    type Error = Box<dyn Error>;
-
-    fn try_from(mut v: Mrkdwn<'a>) -> Result<Self, Self::Error> {
-        match to_mdast(v.text, &ParseOptions::gfm())?.children() {
-            None => Err("no input?".into()),
-            Some(ast) => Ok(v.mrkdwn_blockify(ast)),
-        }
+impl<'a> Mrkdwn<'a> {
+    pub fn from(text: &'a str) -> Self {
+        Self { text, indent_level: 0 }
     }
-}
 
-impl<'a> TryFrom<Mrkdwn<'a>> for String {
-    type Error = Box<dyn Error>;
-
-    fn try_from(mut v: Mrkdwn<'a>) -> Result<Self, Self::Error> {
-        match to_mdast(v.text, &ParseOptions::gfm())?.children() {
-            None => Err("no input?".into()),
-            Some(ast) => Ok(v
-                .mrkdwnify(ast)
+    fn mrkdwnify(&mut self) -> Result<String, Box<dyn Error>> {
+        let result = match to_mdast(self.text, &ParseOptions::gfm())?.children() {
+            None => Err("no input?".to_string()),
+            Some(nodes) => Ok(self
+                .parse(nodes)
                 .trim()
                 .replace('"', "\\\"")
                 .replace('&', "&amp;")
                 .replace('\n', "\\n")
                 .trim_end_matches("\\n")
                 .to_string()),
-        }
-    }
-}
+        };
 
-impl<'a> Mrkdwn<'a> {
-    pub fn from(text: &'a str) -> Self {
-        Self { text, indent_level: 0 }
+        Ok(result?)
     }
 
-    fn mrkdwnify(&mut self, node: &[Node]) -> String {
+    fn blockify(&mut self) -> Result<String, Box<dyn Error>> {
+        use Block::*;
         use Node::*;
 
-        node.iter()
+        let result = match to_mdast(self.text, &ParseOptions::gfm())?.children() {
+            None => Err("no input?".to_string()),
+            Some(nodes) => Ok(nodes
+                .iter()
+                .flat_map(|child| match child {
+                    BlockQuote(n) => vec![Section(self.surround_nodes_with(&n.children, "> ", ""))],
+                    Break(_) => vec![Section("\n".to_string())],
+                    Code(n) => vec![Section(Self::surround_with(&n.value, "```\n", "\n```"))],
+                    Delete(n) => vec![Section(self.surround_nodes_with(&n.children, "~", "~"))],
+                    Emphasis(n) => vec![Section(self.surround_nodes_with(&n.children, "_", "_"))],
+                    Heading(n) => match n.depth {
+                        1 => vec![Header(self.parse(&n.children)), Divider],
+                        _ => vec![Header(self.parse(&n.children))],
+                    },
+                    InlineCode(n) => vec![Section(Self::surround_with(&n.value, "`", "`"))],
+                    Link(n) => vec![Section(format!("<{}|{}>", &n.url, self.parse(&n.children)))],
+                    List(n) => vec![Section(self.handle_list(n))],
+                    ListItem(n) => vec![Section(self.parse(&n.children).to_string())],
+                    Paragraph(n) => vec![Section(self.surround_nodes_with(&n.children, "", "\n"))],
+                    Strong(n) => vec![Section(self.surround_nodes_with(&n.children, "*", "*"))],
+                    Text(n) => vec![Section(n.value.to_string())],
+                    ThematicBreak(_) => vec![Divider],
+                    _ => vec![Section("".to_string())],
+                })
+                .collect::<Vec<_>>()),
+        }?
+        .into_iter()
+        .map(|block| block.into_json())
+        .collect::<Vec<_>>();
+
+        Ok(format!("{{ blocks: {} }}", serde_json::to_string(&result).unwrap()))
+    }
+
+    fn parse(&mut self, nodes: &[Node]) -> String {
+        use Node::*;
+
+        nodes
+            .iter()
             .map(|child| match child {
                 BlockQuote(n) => self.surround_nodes_with(&n.children, "> ", ""),
                 Break(_) => "\n".to_string(),
@@ -89,9 +117,9 @@ impl<'a> Mrkdwn<'a> {
                 Emphasis(n) => self.surround_nodes_with(&n.children, "_", "_"),
                 Heading(n) => self.surround_nodes_with(&n.children, "*", "*\n\n"),
                 InlineCode(n) => Self::surround_with(&n.value, "`", "`"),
-                Link(n) => format!("<{}|{}>", &n.url, self.mrkdwnify(&n.children)),
+                Link(n) => format!("<{}|{}>", &n.url, self.parse(&n.children)),
                 List(n) => self.handle_list(n),
-                ListItem(n) => self.mrkdwnify(&n.children).to_string(),
+                ListItem(n) => self.parse(&n.children).to_string(),
                 Paragraph(n) => self.surround_nodes_with(&n.children, "", "\n"),
                 Strong(n) => self.surround_nodes_with(&n.children, "*", "*"),
                 Text(n) => n.value.to_string(),
@@ -121,37 +149,12 @@ impl<'a> Mrkdwn<'a> {
             .collect::<String>()
     }
 
-    fn mrkdwn_blockify(&mut self, node: &[Node]) -> Vec<Block> {
-        use Block::*;
-        use Node::*;
-
-        node.iter()
-            .map(|child| match child {
-                BlockQuote(n) => Section(self.surround_nodes_with(&n.children, "> ", "")),
-                Break(_) => Section("\n".to_string()),
-                Code(n) => Section(Self::surround_with(&n.value, "```\n", "\n```")),
-                Delete(n) => Section(self.surround_nodes_with(&n.children, "~", "~")),
-                Emphasis(n) => Section(self.surround_nodes_with(&n.children, "_", "_")),
-                Heading(n) => Header(self.mrkdwnify(&n.children)),
-                InlineCode(n) => Section(Self::surround_with(&n.value, "`", "`")),
-                Link(n) => Section(format!("<{}|{}>", &n.url, self.mrkdwnify(&n.children))),
-                List(n) => Section(self.handle_list(n)),
-                ListItem(n) => Section(self.mrkdwnify(&n.children).to_string()),
-                Paragraph(n) => Section(self.surround_nodes_with(&n.children, "", "\n")),
-                Strong(n) => Section(self.surround_nodes_with(&n.children, "*", "*")),
-                Text(n) => Section(n.value.to_string()),
-                ThematicBreak(_) => Divider,
-                _ => Section("".to_string()),
-            })
-            .collect::<Vec<_>>()
-    }
-
     fn surround_with(s: &str, prefix: &str, suffix: &str) -> String {
         format!("{}{}{}", prefix, s, suffix)
     }
 
     fn surround_nodes_with(&mut self, node: &[Node], prefix: &str, suffix: &str) -> String {
-        format!("{}{}{}", prefix, self.mrkdwnify(node), suffix)
+        format!("{}{}{}", prefix, self.parse(node), suffix)
     }
 
     fn handle_list(&mut self, list: &List) -> String {
@@ -167,7 +170,7 @@ impl<'a> Mrkdwn<'a> {
                             "{}{}.  {}\n",
                             "    ".repeat(self.indent_level - 1),
                             i + 1,
-                            self.mrkdwnify(list_item.children().unwrap())
+                            self.parse(list_item.children().unwrap())
                         ),
                     )
                 })
@@ -191,7 +194,7 @@ impl<'a> Mrkdwn<'a> {
                                 Some(true) => "\u{2611}",  // ☑︎
                                 Some(false) => "\u{2610}", // ☐
                             },
-                            self.mrkdwnify(list_item.children().unwrap())
+                            self.parse(list_item.children().unwrap())
                         )
                     })
                 })
@@ -209,7 +212,7 @@ mod test {
     #[test]
     fn test_escaping() {
         [("&", "&amp;"), ("\"", "\\\"")].iter().for_each(|(input, expected)| {
-            assert_eq!(String::try_from(Mrkdwn::from(input)).unwrap(), expected.to_string());
+            assert_eq!(Mrkdwn::from(input).mrkdwnify().unwrap(), expected.to_string());
         });
     }
 
@@ -223,14 +226,14 @@ mod test {
         ]
         .iter()
         .for_each(|(input, expected)| {
-            assert_eq!(String::try_from(Mrkdwn::from(input)).unwrap(), expected.to_string());
+            assert_eq!(Mrkdwn::from(input).mrkdwnify().unwrap(), expected.to_string());
         });
     }
 
     #[test]
     fn test_line_breaks() {
         assert_eq!(
-            String::try_from(Mrkdwn::from("This is a line of text.\nAnd this is another one.")).unwrap(),
+            Mrkdwn::from("This is a line of text.\nAnd this is another one.").mrkdwnify().unwrap(),
             "This is a line of text.\\nAnd this is another one.".to_string()
         );
     }
@@ -238,7 +241,7 @@ mod test {
     #[test]
     fn test_blockquotes() {
         assert_eq!(
-            String::try_from(Mrkdwn::from("This is unquoted.\n> This is quoted.")).unwrap(),
+            Mrkdwn::from("This is unquoted.\n> This is quoted.").mrkdwnify().unwrap(),
             "This is unquoted.\\n> This is quoted.".to_string()
         );
     }
@@ -246,7 +249,7 @@ mod test {
     #[test]
     fn test_inline_code() {
         assert_eq!(
-            String::try_from(Mrkdwn::from("This is `**inline code**`.")).unwrap(),
+            Mrkdwn::from("This is `**inline code**`.").mrkdwnify().unwrap(),
             "This is `**inline code**`.".to_string()
         );
     }
@@ -254,7 +257,7 @@ mod test {
     #[test]
     fn test_code_blocks() {
         assert_eq!(
-            String::try_from(Mrkdwn::from("```\nconsole.log('Hello, mrkdwn!')\n```")).unwrap(),
+            Mrkdwn::from("```\nconsole.log('Hello, mrkdwn!')\n```").mrkdwnify().unwrap(),
             "```\\nconsole.log('Hello, mrkdwn!')\\n```".to_string()
         );
     }
@@ -262,7 +265,7 @@ mod test {
     #[test]
     fn test_links() {
         assert_eq!(
-            String::try_from(Mrkdwn::from("[Slack](https://slack.com/)")).unwrap(),
+            Mrkdwn::from("[Slack](https://slack.com/)").mrkdwnify().unwrap(),
             "<https://slack.com/|Slack>".to_string()
         );
     }
@@ -270,20 +273,20 @@ mod test {
     #[test]
     fn test_lists() {
         assert_eq!(
-            String::try_from(Mrkdwn::from("- First\n- Second\n- Third")).unwrap(),
+            Mrkdwn::from("- First\n- Second\n- Third").mrkdwnify().unwrap(),
             "•   First\\n•   Second\\n•   Third".to_string()
         );
     }
 
     #[test]
     fn test_thematic_breaks() {
-        assert_eq!(String::try_from(Mrkdwn::from("---")).unwrap(), "----------".to_string());
+        assert_eq!(Mrkdwn::from("---").mrkdwnify().unwrap(), "----------".to_string());
     }
 
     #[test]
     fn test_task_lists() {
         assert_eq!(
-            String::try_from(Mrkdwn::from("- [ ] First\n- [x] Second\n- [ ] Third")).unwrap(),
+            Mrkdwn::from("- [ ] First\n- [x] Second\n- [ ] Third").mrkdwnify().unwrap(),
             "\u{2610}   First\\n\u{2611}   Second\\n\u{2610}   Third".to_string()
         );
     }
@@ -324,7 +327,7 @@ console.log('Hello, mrkdwn!')
 ```
 "#;
         assert_eq!(
-            String::try_from(Mrkdwn::from(md)).unwrap(),
+            Mrkdwn::from(md).mrkdwnify().unwrap(),
             "*Heading 1*\\n\\n*Heading 2*\\n\\n*Heading 3*\\n\\nHello, ~Markdown~ *mrkdwn*! and _markdown_.\\n`mrkdwn` is text formatting markup style in <https://slack.com/|Slack>.\\n\\n----------\\n•   First\\n    •   Second\\n        •   Third\\n    •   Fourth\\n        •   Fifth\\n        •   Sixth\\n\\n•   Seventh\\n\\n1.  Ordered list 1\\n    •   Ordered list 1-1\\n        •   Ordered list 1-2\\n\\n2.  Ordered list 2\\n    1.  Ordered list 2-1\\n    2.  Ordered list 2-2\\n\\n3.  Ordered list 3\\n\\n> _This is blockquote._\\n```\\nconsole.log('Hello, mrkdwn!')\\n```",
                    );
     }
@@ -364,14 +367,10 @@ Hello, ~~Markdown~~ **mrkdwn**! and _markdown_.
 console.log('Hello, mrkdwn!')
 ```
 "#;
-        let blocks = Vec::try_from(Mrkdwn::from(md))
-            .unwrap()
-            .into_iter()
-            .map(|block| block.into_json())
-            .collect::<Vec<_>>();
+        let blocks = Mrkdwn::from(md).blockify().unwrap();
         assert_eq!(
-            format!("{{ blocks: {} }}", serde_json::to_string(&blocks).unwrap()),
-            r#"{ blocks: [{"text":{"emoji":true,"text":"Heading 1","type":"plain_text"},"type":"header"},{"text":{"emoji":true,"text":"Heading 2","type":"plain_text"},"type":"header"},{"text":{"emoji":true,"text":"Heading 3","type":"plain_text"},"type":"header"},{"text":{"text":"Hello, ~Markdown~ *mrkdwn*! and _markdown_.\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"`mrkdwn` is text formatting markup style in <https://slack.com/|Slack>.\n","type":"mrkdwn"},"type":"section"},{"type":"divider"},{"text":{"text":"•   First\n    •   Second\n        •   Third\n    •   Fourth\n        •   Fifth\n        •   Sixth\n\n•   Seventh\n\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"1.  Ordered list 1\n    •   Ordered list 1-1\n        •   Ordered list 1-2\n\n2.  Ordered list 2\n    1.  Ordered list 2-1\n    2.  Ordered list 2-2\n\n3.  Ordered list 3\n\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"> _This is blockquote._\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"```\nconsole.log('Hello, mrkdwn!')\n```","type":"mrkdwn"},"type":"section"}] }"#
+            blocks,
+            r#"{ blocks: [{"text":{"emoji":true,"text":"Heading 1","type":"plain_text"},"type":"header"},{"type":"divider"},{"text":{"emoji":true,"text":"Heading 2","type":"plain_text"},"type":"header"},{"text":{"emoji":true,"text":"Heading 3","type":"plain_text"},"type":"header"},{"text":{"text":"Hello, ~Markdown~ *mrkdwn*! and _markdown_.\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"`mrkdwn` is text formatting markup style in <https://slack.com/|Slack>.\n","type":"mrkdwn"},"type":"section"},{"type":"divider"},{"text":{"text":"•   First\n    •   Second\n        •   Third\n    •   Fourth\n        •   Fifth\n        •   Sixth\n\n•   Seventh\n\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"1.  Ordered list 1\n    •   Ordered list 1-1\n        •   Ordered list 1-2\n\n2.  Ordered list 2\n    1.  Ordered list 2-1\n    2.  Ordered list 2-2\n\n3.  Ordered list 3\n\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"> _This is blockquote._\n","type":"mrkdwn"},"type":"section"},{"text":{"text":"```\nconsole.log('Hello, mrkdwn!')\n```","type":"mrkdwn"},"type":"section"}] }"#
         );
     }
 }
