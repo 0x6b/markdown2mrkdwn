@@ -2,6 +2,8 @@
 name = "markdown2mrkdwn"
 version = "0.1.0"
 edition = "2021"
+description = "A library which converts GitHub Flavored Markdown to Slack's mrkdwn or blocks."
+license = "MIT"
 
 [lib]
 name = "markdown2mrkdwn"
