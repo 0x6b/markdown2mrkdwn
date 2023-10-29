@@ -1,5 +1,3 @@
-use std::error::Error;
-
 #[derive(Debug, Eq, PartialEq)]
 pub enum Block {
     Header(String),
@@ -7,11 +5,9 @@ pub enum Block {
     Section(String),
 }
 
-impl TryFrom<Block> for serde_json::Value {
-    type Error = Box<dyn Error>;
-
-    fn try_from(block: Block) -> Result<Self, Self::Error> {
-        Ok(match block {
+impl From<Block> for serde_json::Value {
+    fn from(block: Block) -> Self {
+        match block {
             Block::Header(text) => serde_json::json!({
                 "type": "header",
                 "text": {
@@ -30,6 +26,6 @@ impl TryFrom<Block> for serde_json::Value {
                     "text": text,
                 }
             }),
-        })
+        }
     }
 }
