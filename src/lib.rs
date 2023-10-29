@@ -1,3 +1,4 @@
+pub use block::Block;
 pub use mrkdwn::Mrkdwn;
 
 mod block;

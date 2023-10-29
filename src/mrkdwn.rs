@@ -128,7 +128,10 @@ impl<'a> Mrkdwn<'a> {
             .collect::<String>()
     }
 
-    fn transform_to_blocks(&self, nodes: &[markdown::mdast::Node]) -> Result<Vec<crate::block::Block>, Box<dyn Error>> {
+    pub fn transform_to_blocks(
+        &self,
+        nodes: &[markdown::mdast::Node],
+    ) -> Result<Vec<crate::block::Block>, Box<dyn Error>> {
         use crate::block::Block::*;
         use markdown::mdast::Node::*;
 
