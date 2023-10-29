@@ -29,3 +29,13 @@ impl From<Block> for serde_json::Value {
         }
     }
 }
+
+impl std::fmt::Display for Block {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Block::Header(text) => write!(f, "Header: {text}"),
+            Block::Divider => write!(f, "----------"),
+            Block::Section(text) => write!(f, "Section: {text}"),
+        }
+    }
+}
