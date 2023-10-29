@@ -78,7 +78,7 @@ impl<'a> Mrkdwn<'a> {
                     .ok_or("no input?")?,
             )?
             .into_iter()
-            .flat_map(|block| block.try_into())
+            .map(serde_json::Value::from)
             .collect::<_>();
 
         Ok(format!(r#"{{ "blocks": {} }}"#, serde_json::to_string(&blocks)?))
