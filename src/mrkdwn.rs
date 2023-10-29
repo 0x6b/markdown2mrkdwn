@@ -70,14 +70,10 @@ impl<'a> Mrkdwn<'a> {
     /// Converts the provided text into a Slack Block Kit blocks.
     /// It parses GitHub Flavored Markdown into AST and transforms each element.
     ///
-    /// # Arguments
-    ///
-    /// - `&self` - A reference to the current object.
-    ///
     /// # Returns
     ///
-    /// - `Result<String, Box<dyn Error>>` - Returns a Result object which holds either the transformed text or an
-    ///   error.
+    /// - `Ok(String)`: If the process is successful, this method will return a Slack blocks.
+    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic Error.
     ///
     /// # References
     ///
@@ -85,6 +81,7 @@ impl<'a> Mrkdwn<'a> {
     pub fn blockify(&self) -> Result<String, Box<dyn Error>> {
         use crate::block::Block::*;
         use Node::*;
+
         let result: Vec<Value> = to_mdast(self.text, &ParseOptions::gfm())
             .map_err(|e| e.to_string())?
             .children()
@@ -176,53 +173,52 @@ impl<'a> Mrkdwn<'a> {
             let mut indent_level = self.indent_level.write().unwrap();
             *indent_level = indent_level.saturating_add(1);
         }
-        let current_indent_level = { *self.indent_level.read().unwrap() };
-        let res = if list.ordered {
+
+        let res = {
             list.children
                 .iter()
                 .enumerate()
                 .fold((0, String::new()), |(i, acc), (_, list_item)| {
+                    let indent = "    ".repeat({ *self.indent_level.read().unwrap() } - 1);
+                    let prefix = if list.ordered {
+                        format!("{}.  ", i + 1)
+                    } else {
+                        let task_list = match list.children.get(i) {
+                            Some(ListItem(item)) => item.checked,
+                            _ => None,
+                        };
+
+                        format!(
+                            "{}   ",
+                            match task_list {
+                                None => "•",
+                                Some(true) => "\u{2611}",  // ☑︎
+                                Some(false) => "\u{2610}", // ☐
+                            }
+                        )
+                    };
+
                     (
                         i + 1,
-                        acc + &format!(
-                            "{}{}.  {}\n",
-                            "    ".repeat(current_indent_level - 1),
-                            i + 1,
+                        format!(
+                            "{}{}{}{}\n",
+                            acc,
+                            indent,
+                            prefix,
                             self.parse(list_item.children().unwrap())
                         ),
                     )
                 })
                 .1
-        } else {
-            list.children
-                .iter()
-                .enumerate()
-                .fold((0, String::new()), |(i, acc), (_, list_item)| {
-                    (i + 1, {
-                        let task_list = match list.children.get(i) {
-                            Some(ListItem(item)) => item.checked,
-                            _ => None,
-                        };
-                        format!(
-                            "{}{}{}   {}\n",
-                            acc,
-                            "    ".repeat(current_indent_level - 1),
-                            match task_list {
-                                None => "•",
-                                Some(true) => "\u{2611}",  // ☑︎
-                                Some(false) => "\u{2610}", // ☐
-                            },
-                            self.parse(list_item.children().unwrap())
-                        )
-                    })
-                })
-                .1
-        };
+        }
+        .replace("\n\n", "\n")
+        .add("\n");
 
         {
             let mut indent_level = self.indent_level.write().unwrap();
             *indent_level = indent_level.saturating_sub(1);
         }
-        res.replace("\n\n", "\n").add("\n").to_string()
+
+        res
     }
 }
