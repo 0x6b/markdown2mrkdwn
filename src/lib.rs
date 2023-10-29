@@ -13,7 +13,7 @@ mod test {
             ($name:ident, $input:expr, $expected:expr) => {
                 #[test]
                 fn $name() {
-                    let mrkdwn = &Mrkdwn::from($input).blockify().unwrap();
+                    let mrkdwn = &Mrkdwn::from($input).blocks_stringify().unwrap();
                     assert_eq!(
                         serde_json::from_str::<serde_json::Value>(&mrkdwn).unwrap(),
                         serde_json::from_str::<serde_json::Value>($expected).unwrap()

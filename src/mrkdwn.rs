@@ -1,3 +1,4 @@
+use crate::Block;
 use std::{error::Error, ops::Add, sync::RwLock};
 
 /// `Mrkdwn` is a public struct for handling GitHub Flavored Markdown text and its indentation level. Note that both
@@ -68,7 +69,7 @@ impl<'a> Mrkdwn<'a> {
     /// # References
     ///
     /// - [Block Kit | Slack](https://api.slack.com/block-kit)
-    pub fn blockify(&self) -> Result<String, Box<dyn Error>> {
+    pub fn blocks_stringify(&self) -> Result<String, Box<dyn Error>> {
         let blocks: Vec<serde_json::Value> = self
             .transform_to_blocks(
                 markdown::to_mdast(self.text, &markdown::ParseOptions::gfm())
@@ -81,6 +82,26 @@ impl<'a> Mrkdwn<'a> {
             .collect::<_>();
 
         Ok(format!(r#"{{ "blocks": {} }}"#, serde_json::to_string(&blocks)?))
+    }
+
+    /// Converts the provided text into a Slack Block Kit blocks.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Vec<Block>)`: If the process is successful, this method will return a Vec of Block.
+    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic Error.
+    pub fn blockify(&self) -> Result<Vec<Block>, Box<dyn Error>> {
+        let blocks: Vec<Block> = self
+            .transform_to_blocks(
+                markdown::to_mdast(self.text, &markdown::ParseOptions::gfm())
+                    .map_err(|e| e.to_string())?
+                    .children()
+                    .ok_or("no input?")?,
+            )?
+            .into_iter()
+            .collect::<_>();
+
+        Ok(blocks)
     }
 
     fn transform_to_mrkdwn(&self, nodes: &[markdown::mdast::Node]) -> String {
@@ -128,10 +149,7 @@ impl<'a> Mrkdwn<'a> {
             .collect::<String>()
     }
 
-    pub fn transform_to_blocks(
-        &self,
-        nodes: &[markdown::mdast::Node],
-    ) -> Result<Vec<crate::block::Block>, Box<dyn Error>> {
+    fn transform_to_blocks(&self, nodes: &[markdown::mdast::Node]) -> Result<Vec<crate::block::Block>, Box<dyn Error>> {
         use crate::block::Block::*;
         use markdown::mdast::Node::*;
 
