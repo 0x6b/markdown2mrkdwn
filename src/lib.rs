@@ -6,7 +6,7 @@ mod mrkdwn;
 
 #[cfg(test)]
 mod test {
-    mod blockify {
+    mod blocks_stringify {
         use crate::Mrkdwn;
 
         macro_rules! test {

@@ -1,4 +1,5 @@
 use crate::Block;
+use serde_json::Value;
 use std::{error::Error, ops::Add, sync::RwLock};
 
 /// `Mrkdwn` is a public struct for handling GitHub Flavored Markdown text and its indentation level. Note that both
@@ -70,16 +71,7 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// - [Block Kit | Slack](https://api.slack.com/block-kit)
     pub fn blocks_stringify(&self) -> Result<String, Box<dyn Error>> {
-        let blocks: Vec<serde_json::Value> = self
-            .transform_to_blocks(
-                markdown::to_mdast(self.text, &markdown::ParseOptions::gfm())
-                    .map_err(|e| e.to_string())?
-                    .children()
-                    .ok_or("no input?")?,
-            )?
-            .into_iter()
-            .map(serde_json::Value::from)
-            .collect::<_>();
+        let blocks: Vec<Value> = self.blockify()?.into_iter().map(serde_json::Value::from).collect::<_>();
 
         Ok(format!(r#"{{ "blocks": {} }}"#, serde_json::to_string(&blocks)?))
     }
