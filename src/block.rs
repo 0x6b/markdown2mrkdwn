@@ -1,7 +1,5 @@
 use std::error::Error;
 
-use serde_json::{json, Value};
-
 #[derive(Debug)]
 pub(crate) enum Block {
     Header(String),
@@ -9,12 +7,12 @@ pub(crate) enum Block {
     Section(String),
 }
 
-impl TryFrom<Block> for Value {
+impl TryFrom<Block> for serde_json::Value {
     type Error = Box<dyn Error>;
 
     fn try_from(block: Block) -> Result<Self, Self::Error> {
         Ok(match block {
-            Block::Header(text) => json!({
+            Block::Header(text) => serde_json::json!({
                 "type": "header",
                 "text": {
                     "type": "plain_text",
@@ -22,10 +20,10 @@ impl TryFrom<Block> for Value {
                     "emoji": true,
                 },
             }),
-            Block::Divider => json!({
+            Block::Divider => serde_json::json!({
                 "type": "divider",
             }),
-            Block::Section(text) => json!({
+            Block::Section(text) => serde_json::json!({
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
