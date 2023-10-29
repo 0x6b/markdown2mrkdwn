@@ -1,6 +1,6 @@
 use std::error::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Block {
     Header(String),
     Divider,
