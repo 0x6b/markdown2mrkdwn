@@ -1,7 +1,7 @@
 use std::error::Error;
 
 #[derive(Debug)]
-pub(crate) enum Block {
+pub enum Block {
     Header(String),
     Divider,
     Section(String),
