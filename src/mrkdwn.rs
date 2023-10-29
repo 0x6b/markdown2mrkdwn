@@ -1,3 +1,4 @@
+use std::sync::RwLock;
 use std::{error::Error, ops::Add};
 
 use markdown::{
@@ -21,7 +22,7 @@ pub struct Mrkdwn<'a> {
     text: &'a str,
 
     /// Indication of the level of indentation.
-    indent_level: usize,
+    indent_level: RwLock<usize>,
 }
 
 impl<'a> Mrkdwn<'a> {
@@ -31,7 +32,10 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// - `text` - A GitHub Flavored Markdown.
     pub fn from(text: &'a str) -> Self {
-        Self { text, indent_level: 0 }
+        Self {
+            text,
+            indent_level: RwLock::new(0),
+        }
     }
 
     /// This method is responsible for markdownifying the text in `self`.
@@ -47,7 +51,7 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// - The text cannot be parsed into a Markdown abstract syntax tree.
     /// - The root node has no children elements.
-    pub fn mrkdwnify(&mut self) -> Result<String, Box<dyn Error>> {
+    pub fn mrkdwnify(&self) -> Result<String, Box<dyn Error>> {
         Ok(self
             .parse(
                 to_mdast(self.text, &ParseOptions::gfm())
@@ -68,8 +72,7 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// # Arguments
     ///
-    /// - `&mut self` - A mutable reference to the current object. To track the indentation level, this method mutates
-    ///   the `indent_level` field.
+    /// - `&self` - A reference to the current object.
     ///
     /// # Returns
     ///
@@ -79,7 +82,7 @@ impl<'a> Mrkdwn<'a> {
     /// # References
     ///
     /// - [Block Kit | Slack](https://api.slack.com/block-kit)
-    pub fn blockify(&mut self) -> Result<String, Box<dyn Error>> {
+    pub fn blockify(&self) -> Result<String, Box<dyn Error>> {
         use crate::block::Block::*;
         use Node::*;
         let result: Vec<Value> = to_mdast(self.text, &ParseOptions::gfm())
@@ -115,7 +118,7 @@ impl<'a> Mrkdwn<'a> {
         ))
     }
 
-    fn parse(&mut self, nodes: &[Node]) -> String {
+    fn parse(&self, nodes: &[Node]) -> String {
         use Node::*;
 
         nodes
@@ -164,12 +167,16 @@ impl<'a> Mrkdwn<'a> {
         format!("{}{}{}", prefix, s, suffix)
     }
 
-    fn surround_nodes_with(&mut self, node: &[Node], prefix: &str, suffix: &str) -> String {
+    fn surround_nodes_with(&self, node: &[Node], prefix: &str, suffix: &str) -> String {
         format!("{}{}{}", prefix, self.parse(node), suffix)
     }
 
-    fn handle_list(&mut self, list: &List) -> String {
-        self.indent_level = self.indent_level.saturating_add(1);
+    fn handle_list(&self, list: &List) -> String {
+        {
+            let mut indent_level = self.indent_level.write().unwrap();
+            *indent_level = indent_level.saturating_add(1);
+        }
+        let current_indent_level = { *self.indent_level.read().unwrap() };
         let res = if list.ordered {
             list.children
                 .iter()
@@ -179,7 +186,7 @@ impl<'a> Mrkdwn<'a> {
                         i + 1,
                         acc + &format!(
                             "{}{}.  {}\n",
-                            "    ".repeat(self.indent_level - 1),
+                            "    ".repeat(current_indent_level - 1),
                             i + 1,
                             self.parse(list_item.children().unwrap())
                         ),
@@ -199,7 +206,7 @@ impl<'a> Mrkdwn<'a> {
                         format!(
                             "{}{}{}   {}\n",
                             acc,
-                            "    ".repeat(self.indent_level - 1),
+                            "    ".repeat(current_indent_level - 1),
                             match task_list {
                                 None => "•",
                                 Some(true) => "\u{2611}",  // ☑︎
@@ -211,7 +218,11 @@ impl<'a> Mrkdwn<'a> {
                 })
                 .1
         };
-        self.indent_level = self.indent_level.saturating_sub(1);
+
+        {
+            let mut indent_level = self.indent_level.write().unwrap();
+            *indent_level = indent_level.saturating_sub(1);
+        }
         res.replace("\n\n", "\n").add("\n").to_string()
     }
 }
