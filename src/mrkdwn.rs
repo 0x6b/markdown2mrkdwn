@@ -1,9 +1,15 @@
-use crate::Block;
-use serde_json::Value;
 use std::{error::Error, ops::Add, sync::RwLock};
 
-/// `Mrkdwn` is a public struct for handling GitHub Flavored Markdown text and its indentation level. Note that both
-/// fields are not accessible from outside.
+use markdown::{
+    mdast::{List, Node, Node::ListItem},
+    to_mdast, ParseOptions,
+};
+use serde_json::{to_string, Value};
+
+use crate::Block;
+
+/// `Mrkdwn` is a public struct for handling GitHub Flavored Markdown text and its indentation
+/// level. Note that both fields are not accessible from outside.
 ///
 /// # Fields
 ///
@@ -24,18 +30,17 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// - `text` - A GitHub Flavored Markdown.
     pub fn from(text: &'a str) -> Self {
-        Self {
-            text,
-            indent_level: RwLock::new(0),
-        }
+        Self { text, indent_level: RwLock::new(0) }
     }
 
     /// This method is responsible for markdownifying the text in `self`.
     ///
     /// # Returns
     ///
-    /// - `Ok(String)`: If the process is successful, this method will return a markdownified version of `self.text`.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic Error.
+    /// - `Ok(String)`: If the process is successful, this method will return a markdownified
+    ///   version of `self.text`.
+    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
+    ///   Error.
     ///
     /// # Errors
     ///
@@ -46,7 +51,7 @@ impl<'a> Mrkdwn<'a> {
     pub fn mrkdwnify(&self) -> Result<String, Box<dyn Error>> {
         Ok(self
             .transform_to_mrkdwn(
-                markdown::to_mdast(self.text, &markdown::ParseOptions::gfm())
+                to_mdast(self.text, &ParseOptions::gfm())
                     .map_err(|e| e.to_string())?
                     .children()
                     .ok_or("no input?")?,
@@ -65,15 +70,16 @@ impl<'a> Mrkdwn<'a> {
     /// # Returns
     ///
     /// - `Ok(String)`: If the process is successful, this method will return a Slack blocks.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic Error.
+    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
+    ///   Error.
     ///
     /// # References
     ///
     /// - [Block Kit | Slack](https://api.slack.com/block-kit)
     pub fn blocks_stringify(&self) -> Result<String, Box<dyn Error>> {
-        let blocks: Vec<Value> = self.blockify()?.into_iter().map(serde_json::Value::from).collect::<_>();
+        let blocks: Vec<Value> = self.blockify()?.into_iter().map(Value::from).collect::<_>();
 
-        Ok(format!(r#"{{ "blocks": {} }}"#, serde_json::to_string(&blocks)?))
+        Ok(format!(r#"{{ "blocks": {} }}"#, to_string(&blocks)?))
     }
 
     /// Converts the provided text into a Slack Block Kit blocks.
@@ -81,11 +87,12 @@ impl<'a> Mrkdwn<'a> {
     /// # Returns
     ///
     /// - `Ok(Vec<Block>)`: If the process is successful, this method will return a Vec of Block.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic Error.
+    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
+    ///   Error.
     pub fn blockify(&self) -> Result<Vec<Block>, Box<dyn Error>> {
         let blocks: Vec<Block> = self
             .transform_to_blocks(
-                markdown::to_mdast(self.text, &markdown::ParseOptions::gfm())
+                to_mdast(self.text, &ParseOptions::gfm())
                     .map_err(|e| e.to_string())?
                     .children()
                     .ok_or("no input?")?,
@@ -96,8 +103,8 @@ impl<'a> Mrkdwn<'a> {
         Ok(blocks)
     }
 
-    fn transform_to_mrkdwn(&self, nodes: &[markdown::mdast::Node]) -> String {
-        use markdown::mdast::Node::*;
+    fn transform_to_mrkdwn(&self, nodes: &[Node]) -> String {
+        use Node::*;
 
         nodes
             .iter()
@@ -141,9 +148,10 @@ impl<'a> Mrkdwn<'a> {
             .collect::<String>()
     }
 
-    fn transform_to_blocks(&self, nodes: &[markdown::mdast::Node]) -> Result<Vec<crate::block::Block>, Box<dyn Error>> {
+    fn transform_to_blocks(&self, nodes: &[Node]) -> Result<Vec<Block>, Box<dyn Error>> {
+        use Node::*;
+
         use crate::block::Block::*;
-        use markdown::mdast::Node::*;
 
         Ok(nodes
             .iter()
@@ -158,11 +166,9 @@ impl<'a> Mrkdwn<'a> {
                     _ => vec![Header(self.transform_to_mrkdwn(&n.children))],
                 },
                 InlineCode(n) => vec![Section(Self::surround_with(&n.value, "`", "`"))],
-                Link(n) => vec![Section(format!(
-                    "<{}|{}>",
-                    &n.url,
-                    self.transform_to_mrkdwn(&n.children)
-                ))],
+                Link(n) => {
+                    vec![Section(format!("<{}|{}>", &n.url, self.transform_to_mrkdwn(&n.children)))]
+                }
                 List(n) => vec![Section(self.handle_list(n))],
                 ListItem(n) => vec![Section(self.transform_to_mrkdwn(&n.children).to_string())],
                 Paragraph(n) => vec![Section(self.surround_nodes_with(&n.children, "", "\n"))],
@@ -178,11 +184,11 @@ impl<'a> Mrkdwn<'a> {
         format!("{}{}{}", prefix, s, suffix)
     }
 
-    fn surround_nodes_with(&self, nodes: &[markdown::mdast::Node], prefix: &str, suffix: &str) -> String {
+    fn surround_nodes_with(&self, nodes: &[Node], prefix: &str, suffix: &str) -> String {
         format!("{}{}{}", prefix, self.transform_to_mrkdwn(nodes), suffix)
     }
 
-    fn handle_list(&self, list: &markdown::mdast::List) -> String {
+    fn handle_list(&self, list: &List) -> String {
         {
             let mut indent_level = self.indent_level.write().unwrap();
             *indent_level = indent_level.saturating_add(1);
@@ -198,7 +204,7 @@ impl<'a> Mrkdwn<'a> {
                         format!("{}.  ", i + 1)
                     } else {
                         let task_list = match list.children.get(i) {
-                            Some(markdown::mdast::Node::ListItem(item)) => item.checked,
+                            Some(ListItem(item)) => item.checked,
                             _ => None,
                         };
 
