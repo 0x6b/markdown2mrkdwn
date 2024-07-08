@@ -151,10 +151,7 @@ Another paragraph.
             ($name:ident, $input:expr, $expected:expr) => {
                 #[test]
                 fn $name() {
-                    assert_eq!(
-                        Mrkdwn::from($input).mrkdwnify().unwrap(),
-                        $expected.to_string()
-                    );
+                    assert_eq!(Mrkdwn::from($input).mrkdwnify().unwrap(), $expected.to_string());
                 }
             };
         }
@@ -187,16 +184,8 @@ Another paragraph.
             "*Heading 1*\\n\\n*Heading 2*\\n\\n*Heading 3*"
         );
         test!(link, "[Slack](https://slack.com/)", "<https://slack.com/|Slack>");
-        test!(
-            lists,
-            "- First\n- Second\n- Third",
-            "•   First\\n•   Second\\n•   Third"
-        );
-        test!(
-            ordered_lists,
-            "1. First\n1. Second\n1. Third",
-            "1.  First\\n2.  Second\\n3.  Third"
-        );
+        test!(lists, "- First\n- Second\n- Third", "•   First\\n•   Second\\n•   Third");
+        test!(ordered_lists, "1. First\n1. Second\n1. Third", "1.  First\\n2.  Second\\n3.  Third");
         test!(
             nested_lists,
             "- First\n    - Second\n        - Third\n    - Fourth\n        - Fifth\n        - Sixth\n- Seventh",

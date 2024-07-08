@@ -1,9 +1,11 @@
-use crate::Block;
-use serde_json::Value;
 use std::{error::Error, ops::Add, sync::RwLock};
 
-/// `Mrkdwn` is a public struct for handling GitHub Flavored Markdown text and its indentation level. Note that both
-/// fields are not accessible from outside.
+use serde_json::Value;
+
+use crate::Block;
+
+/// `Mrkdwn` is a public struct for handling GitHub Flavored Markdown text and its indentation
+/// level. Note that both fields are not accessible from outside.
 ///
 /// # Fields
 ///
@@ -24,18 +26,17 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// - `text` - A GitHub Flavored Markdown.
     pub fn from(text: &'a str) -> Self {
-        Self {
-            text,
-            indent_level: RwLock::new(0),
-        }
+        Self { text, indent_level: RwLock::new(0) }
     }
 
     /// This method is responsible for markdownifying the text in `self`.
     ///
     /// # Returns
     ///
-    /// - `Ok(String)`: If the process is successful, this method will return a markdownified version of `self.text`.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic Error.
+    /// - `Ok(String)`: If the process is successful, this method will return a markdownified
+    ///   version of `self.text`.
+    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
+    ///   Error.
     ///
     /// # Errors
     ///
@@ -65,13 +66,18 @@ impl<'a> Mrkdwn<'a> {
     /// # Returns
     ///
     /// - `Ok(String)`: If the process is successful, this method will return a Slack blocks.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic Error.
+    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
+    ///   Error.
     ///
     /// # References
     ///
     /// - [Block Kit | Slack](https://api.slack.com/block-kit)
     pub fn blocks_stringify(&self) -> Result<String, Box<dyn Error>> {
-        let blocks: Vec<Value> = self.blockify()?.into_iter().map(serde_json::Value::from).collect::<_>();
+        let blocks: Vec<Value> = self
+            .blockify()?
+            .into_iter()
+            .map(serde_json::Value::from)
+            .collect::<_>();
 
         Ok(format!(r#"{{ "blocks": {} }}"#, serde_json::to_string(&blocks)?))
     }
@@ -81,7 +87,8 @@ impl<'a> Mrkdwn<'a> {
     /// # Returns
     ///
     /// - `Ok(Vec<Block>)`: If the process is successful, this method will return a Vec of Block.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic Error.
+    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
+    ///   Error.
     pub fn blockify(&self) -> Result<Vec<Block>, Box<dyn Error>> {
         let blocks: Vec<Block> = self
             .transform_to_blocks(
@@ -141,9 +148,13 @@ impl<'a> Mrkdwn<'a> {
             .collect::<String>()
     }
 
-    fn transform_to_blocks(&self, nodes: &[markdown::mdast::Node]) -> Result<Vec<crate::block::Block>, Box<dyn Error>> {
-        use crate::block::Block::*;
+    fn transform_to_blocks(
+        &self,
+        nodes: &[markdown::mdast::Node],
+    ) -> Result<Vec<crate::block::Block>, Box<dyn Error>> {
         use markdown::mdast::Node::*;
+
+        use crate::block::Block::*;
 
         Ok(nodes
             .iter()
@@ -158,11 +169,9 @@ impl<'a> Mrkdwn<'a> {
                     _ => vec![Header(self.transform_to_mrkdwn(&n.children))],
                 },
                 InlineCode(n) => vec![Section(Self::surround_with(&n.value, "`", "`"))],
-                Link(n) => vec![Section(format!(
-                    "<{}|{}>",
-                    &n.url,
-                    self.transform_to_mrkdwn(&n.children)
-                ))],
+                Link(n) => {
+                    vec![Section(format!("<{}|{}>", &n.url, self.transform_to_mrkdwn(&n.children)))]
+                }
                 List(n) => vec![Section(self.handle_list(n))],
                 ListItem(n) => vec![Section(self.transform_to_mrkdwn(&n.children).to_string())],
                 Paragraph(n) => vec![Section(self.surround_nodes_with(&n.children, "", "\n"))],
@@ -178,7 +187,12 @@ impl<'a> Mrkdwn<'a> {
         format!("{}{}{}", prefix, s, suffix)
     }
 
-    fn surround_nodes_with(&self, nodes: &[markdown::mdast::Node], prefix: &str, suffix: &str) -> String {
+    fn surround_nodes_with(
+        &self,
+        nodes: &[markdown::mdast::Node],
+        prefix: &str,
+        suffix: &str,
+    ) -> String {
         format!("{}{}{}", prefix, self.transform_to_mrkdwn(nodes), suffix)
     }
 
