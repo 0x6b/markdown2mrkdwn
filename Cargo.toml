@@ -1,6 +1,6 @@
 [package]
 name = "markdown2mrkdwn"
-version = "0.8.2"
+version = "0.8.3"
 edition = "2021"
 description = "A library which converts GitHub Flavored Markdown to Slack's mrkdwn or blocks."
 license = "MIT"
@@ -10,5 +10,5 @@ name = "markdown2mrkdwn"
 path = "src/lib.rs"
 
 [dependencies]
-markdown = "1.0.0-alpha.18"
-serde_json = { version = "1.0.120", features = [] }
+markdown = "1.0.0-alpha"
+serde_json = { version = "1.0", default-features = false, features = ["std"] }
