@@ -10,5 +10,5 @@ name = "markdown2mrkdwn"
 path = "src/lib.rs"
 
 [dependencies]
-markdown = "1.0.0-alpha.16"
-serde_json = { version = "1.0.115", features = [] }
+markdown = "1.0.0-alpha.18"
+serde_json = { version = "1.0.120", features = [] }
