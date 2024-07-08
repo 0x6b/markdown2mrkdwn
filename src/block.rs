@@ -1,3 +1,9 @@
+use std::{fmt, fmt::Display};
+
+use serde_json::{json, Value};
+
+use crate::Block::{Divider, Header, Section};
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Block {
     Header(String),
@@ -5,10 +11,10 @@ pub enum Block {
     Section(String),
 }
 
-impl From<Block> for serde_json::Value {
+impl From<Block> for Value {
     fn from(block: Block) -> Self {
         match block {
-            Block::Header(text) => serde_json::json!({
+            Header(text) => json!({
                 "type": "header",
                 "text": {
                     "type": "plain_text",
@@ -16,10 +22,10 @@ impl From<Block> for serde_json::Value {
                     "emoji": true,
                 },
             }),
-            Block::Divider => serde_json::json!({
+            Divider => json!({
                 "type": "divider",
             }),
-            Block::Section(text) => serde_json::json!({
+            Section(text) => json!({
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
@@ -30,12 +36,12 @@ impl From<Block> for serde_json::Value {
     }
 }
 
-impl std::fmt::Display for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Block {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Block::Header(text) => write!(f, "Header: {text}"),
-            Block::Divider => write!(f, "----------"),
-            Block::Section(text) => write!(f, "Section: {text}"),
+            Header(text) => write!(f, "Header: {text}"),
+            Divider => write!(f, "----------"),
+            Section(text) => write!(f, "Section: {text}"),
         }
     }
 }
