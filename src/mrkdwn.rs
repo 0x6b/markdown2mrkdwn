@@ -1,5 +1,6 @@
-use std::{error::Error, ops::Add, sync::RwLock};
+use std::{ops::Add, sync::RwLock};
 
+use anyhow::{anyhow, Result};
 use markdown::{
     mdast::{List, Node, Node::ListItem},
     to_mdast, ParseOptions,
@@ -48,13 +49,13 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// - The text cannot be parsed into a Markdown abstract syntax tree.
     /// - The root node has no children elements.
-    pub fn mrkdwnify(&self) -> Result<String, Box<dyn Error>> {
+    pub fn mrkdwnify(&self) -> Result<String> {
         Ok(self
             .transform_to_mrkdwn(
                 to_mdast(self.text, &ParseOptions::gfm())
-                    .map_err(|e| e.to_string())?
+                    .map_err(|e| anyhow!("Failed to parse markdown: {}", e.to_string()))?
                     .children()
-                    .ok_or("no input?")?,
+                    .ok_or(anyhow!("no input?"))?,
             )
             .trim()
             .replace('"', "\\\"")
@@ -76,7 +77,7 @@ impl<'a> Mrkdwn<'a> {
     /// # References
     ///
     /// - [Block Kit | Slack](https://api.slack.com/block-kit)
-    pub fn blocks_stringify(&self) -> Result<String, Box<dyn Error>> {
+    pub fn blocks_stringify(&self) -> Result<String> {
         let blocks: Vec<Value> = self.blockify()?.into_iter().map(Value::from).collect::<_>();
 
         Ok(format!(r#"{{ "blocks": {} }}"#, to_string(&blocks)?))
@@ -89,13 +90,13 @@ impl<'a> Mrkdwn<'a> {
     /// - `Ok(Vec<Block>)`: If the process is successful, this method will return a Vec of Block.
     /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
     ///   Error.
-    pub fn blockify(&self) -> Result<Vec<Block>, Box<dyn Error>> {
+    pub fn blockify(&self) -> Result<Vec<Block>> {
         let blocks: Vec<Block> = self
             .transform_to_blocks(
                 to_mdast(self.text, &ParseOptions::gfm())
-                    .map_err(|e| e.to_string())?
+                    .map_err(|e| anyhow!("Failed to parse markdown: {}", e.to_string()))?
                     .children()
-                    .ok_or("no input?")?,
+                    .ok_or(anyhow!("no input?"))?,
             )?
             .into_iter()
             .collect::<_>();
@@ -148,7 +149,7 @@ impl<'a> Mrkdwn<'a> {
             .collect::<String>()
     }
 
-    fn transform_to_blocks(&self, nodes: &[Node]) -> Result<Vec<Block>, Box<dyn Error>> {
+    fn transform_to_blocks(&self, nodes: &[Node]) -> Result<Vec<Block>> {
         use Node::*;
 
         use crate::block::Block::*;

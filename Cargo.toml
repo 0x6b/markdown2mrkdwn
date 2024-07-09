@@ -10,5 +10,6 @@ name = "markdown2mrkdwn"
 path = "src/lib.rs"
 
 [dependencies]
+anyhow = "1.0"
 markdown = "1.0.0-alpha"
 serde_json = { version = "1.0", default-features = false, features = ["std"] }
