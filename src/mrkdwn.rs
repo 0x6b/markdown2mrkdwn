@@ -40,8 +40,7 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// - `Ok(String)`: If the process is successful, this method will return a markdownified
     ///   version of `self.text`.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
-    ///   Error.
+    /// - `Err(String)`: In case of an error during the process, it returns an Error.
     ///
     /// # Errors
     ///
@@ -71,8 +70,7 @@ impl<'a> Mrkdwn<'a> {
     /// # Returns
     ///
     /// - `Ok(String)`: If the process is successful, this method will return a Slack blocks.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
-    ///   Error.
+    /// - `Err(String)`: In case of an error during the process, it returns an Error.
     ///
     /// # References
     ///
@@ -88,8 +86,7 @@ impl<'a> Mrkdwn<'a> {
     /// # Returns
     ///
     /// - `Ok(Vec<Block>)`: If the process is successful, this method will return a Vec of Block.
-    /// - `Err(Box<dyn Error>)`: In case of an error during the process, it returns a boxed dynamic
-    ///   Error.
+    /// - `Err(String)`: In case of an error during the process, it returns an Error.
     pub fn blockify(&self) -> Result<Vec<Block>> {
         let blocks: Vec<Block> = self
             .transform_to_blocks(
