@@ -8,7 +8,7 @@ See the `examples` directory for usage.
 
 1. Run the example.
     ```console
-    $ cargo run --examples blocks
+    $ cargo run --example blocks
     ```
 2. Copy the output and paste it to [Block Kit Builder](https://app.slack.com/block-kit-builder/).
 3. See the preview to check if it works as expected.
