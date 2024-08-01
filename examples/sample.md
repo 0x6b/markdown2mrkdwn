@@ -14,7 +14,11 @@ Lorem _italic_ and _**Bold Italic**_  dolor sit amet, __emphasis__ adipiscing el
 
 ## Horizontal rule
 
+A paragraph before the thematic break.
+
 ---
+
+A paragraph after the thematic break.
 
 ## Bullet lists nested within a numbered list
 

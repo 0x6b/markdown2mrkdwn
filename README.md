@@ -13,6 +13,10 @@ See the `examples` directory for usage.
 2. Copy the output and paste it to [Block Kit Builder](https://app.slack.com/block-kit-builder/).
 3. See the preview to check if it works as expected.
 
+| Before (Markdown)              | After (mrkdwn)               |
+|--------------------------------|------------------------------|
+| ![before](examples/before.png) | ![after](examples/after.png) |
+
 ## CLI Usage
 
 Run the simple CLI tool to convert a markdown file to mrkdwn.
