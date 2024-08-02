@@ -22,7 +22,17 @@ See the `examples` directory for usage.
 Run the simple CLI tool to convert a markdown file to mrkdwn.
 
 ```console
-$ cargo run --features=bin examples/sample.md
+$ cargo run --quiet --features=bin -- --help
+Convert markdown to mrkdwn format and dump it to stdout
+
+Usage: 
+
+Arguments:
+  [PATH]  Path to a markdown file to convert to mrkdwn. If not provided,
+          the content will be read from stdin
+
+Options:
+  -h, --help  Print help
 ```
 
 ## Reference
