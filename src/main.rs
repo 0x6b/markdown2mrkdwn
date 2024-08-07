@@ -16,11 +16,15 @@ struct Args {
     /// from stdin.
     #[arg()]
     path: Option<PathBuf>,
+
+    /// Whether to convert markdown to mrkdwn blocks. Defaults to plain mrkdwn.
+    #[arg(short, long)]
+    blocks: bool,
 }
 
 #[cfg(feature = "bin")]
 fn main() -> Result<()> {
-    let Args { path } = Args::parse();
+    let Args { path, blocks } = Args::parse();
     let input = match path {
         None => {
             let mut buffer = String::new();
@@ -32,11 +36,15 @@ fn main() -> Result<()> {
 
     print!(
         "{}",
-        Mrkdwn::from(&input)
-            .mrkdwnify()?
-            .replace("\\\"", "\"")
-            .replace("&amp;", "&")
-            .replace("\\n", "\n")
+        if blocks {
+            Mrkdwn::from(&input).blocks_stringify()?
+        } else {
+            Mrkdwn::from(&input)
+                .mrkdwnify()?
+                .replace("\\\"", "\"")
+                .replace("&amp;", "&")
+                .replace("\\n", "\n")
+        }
     );
 
     Ok(())

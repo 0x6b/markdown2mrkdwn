@@ -28,11 +28,11 @@ Convert markdown to mrkdwn format and dump it to stdout
 Usage: 
 
 Arguments:
-  [PATH]  Path to a markdown file to convert to mrkdwn. If not provided,
-          the content will be read from stdin
+  [PATH]  Path to a markdown file to convert to mrkdwn. If not provided, the content will be read from stdin
 
 Options:
-  -h, --help  Print help
+  -b, --blocks  Whether to convert markdown to mrkdwn blocks. Defaults to plain mrkdwn
+  -h, --help    Print help
 ```
 
 ## Reference
