@@ -161,7 +161,8 @@ impl<'a> Mrkdwn<'a> {
                 Emphasis(n) => vec![Section(self.surround_nodes_with(&n.children, "_", "_"))],
                 Heading(n) => match n.depth {
                     1 => vec![Header(self.transform_to_mrkdwn(&n.children)), Divider],
-                    _ => vec![Header(self.transform_to_mrkdwn(&n.children))],
+                    2 => vec![Header(self.transform_to_mrkdwn(&n.children))],
+                    _ => vec![Section(self.surround_nodes_with(&n.children, "*", "*"))],
                 },
                 InlineCode(n) => vec![Section(Self::surround_with(&n.value, "`", "`"))],
                 Link(n) => {
