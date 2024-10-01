@@ -107,7 +107,7 @@ impl<'a> Mrkdwn<'a> {
         nodes
             .iter()
             .map(|child| match child {
-                BlockQuote(n) => self.surround_nodes_with(&n.children, "> ", ""),
+                Blockquote(n) => self.surround_nodes_with(&n.children, "> ", ""),
                 Break(_) => "\n".to_string(),
                 Code(n) => Self::surround_with(&n.value, "```\n", "\n```\n"),
                 Delete(n) => self.surround_nodes_with(&n.children, "~", "~"),
@@ -154,7 +154,7 @@ impl<'a> Mrkdwn<'a> {
         Ok(nodes
             .iter()
             .flat_map(|child| match child {
-                BlockQuote(n) => vec![Section(self.surround_nodes_with(&n.children, "> ", ""))],
+                Blockquote(n) => vec![Section(self.surround_nodes_with(&n.children, "> ", ""))],
                 Break(_) => vec![Section("\n".to_string())],
                 Code(n) => vec![Section(Self::surround_with(&n.value, "```\n", "\n```\n"))],
                 Delete(n) => vec![Section(self.surround_nodes_with(&n.children, "~", "~"))],
