@@ -1,14 +1,9 @@
-use std::{
-    fs::read_to_string,
-    io::{Read, stdin},
-    path::PathBuf,
-};
+#![cfg(feature = "bin")]
 
 use anyhow::Result;
 use clap::Parser;
 use markdown2mrkdwn::Mrkdwn;
 
-#[cfg(feature = "bin")]
 #[derive(Debug, Parser)]
 #[clap(about = "Convert markdown to mrkdwn format and dump it to stdout")]
 struct Args {
@@ -22,7 +17,6 @@ struct Args {
     blocks: bool,
 }
 
-#[cfg(feature = "bin")]
 fn main() -> Result<()> {
     let Args { path, blocks } = Args::parse();
     let input = match path {
