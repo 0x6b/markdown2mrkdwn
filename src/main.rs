@@ -1,6 +1,6 @@
 use std::{
     fs::read_to_string,
-    io::{stdin, Read},
+    io::{Read, stdin},
     path::PathBuf,
 };
 

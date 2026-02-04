@@ -1,11 +1,12 @@
 use std::{ops::Add, sync::RwLock};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use markdown::{
+    ParseOptions,
     mdast::{List, Node, Node::ListItem},
-    to_mdast, ParseOptions,
+    to_mdast,
 };
-use serde_json::{to_string, Value};
+use serde_json::{Value, to_string};
 
 use crate::Block;
 
@@ -52,7 +53,7 @@ impl<'a> Mrkdwn<'a> {
         Ok(self
             .transform_to_mrkdwn(
                 to_mdast(self.text, &ParseOptions::gfm())
-                    .map_err(|e| anyhow!("Failed to parse markdown: {}", e.to_string()))?
+                    .map_err(|e| anyhow!("Failed to parse markdown: {e}"))?
                     .children()
                     .ok_or(anyhow!("no input?"))?,
             )
@@ -91,7 +92,7 @@ impl<'a> Mrkdwn<'a> {
         let blocks: Vec<Block> = self
             .transform_to_blocks(
                 to_mdast(self.text, &ParseOptions::gfm())
-                    .map_err(|e| anyhow!("Failed to parse markdown: {}", e.to_string()))?
+                    .map_err(|e| anyhow!("Failed to parse markdown: {e}"))?
                     .children()
                     .ok_or(anyhow!("no input?"))?,
             )?
@@ -180,11 +181,11 @@ impl<'a> Mrkdwn<'a> {
     }
 
     fn surround_with(s: &str, prefix: &str, suffix: &str) -> String {
-        format!("{}{}{}", prefix, s, suffix)
+        format!("{prefix}{s}{suffix}")
     }
 
     fn surround_nodes_with(&self, nodes: &[Node], prefix: &str, suffix: &str) -> String {
-        format!("{}{}{}", prefix, self.transform_to_mrkdwn(nodes), suffix)
+        format!("{prefix}{}{suffix}", self.transform_to_mrkdwn(nodes))
     }
 
     fn handle_list(&self, list: &List) -> String {
@@ -220,10 +221,7 @@ impl<'a> Mrkdwn<'a> {
                     (
                         i + 1,
                         format!(
-                            "{}{}{}{}\n",
-                            acc,
-                            indent,
-                            prefix,
+                            "{acc}{indent}{prefix}{}\n",
                             self.transform_to_mrkdwn(list_item.children().unwrap())
                         ),
                     )

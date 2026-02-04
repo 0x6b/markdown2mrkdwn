@@ -1,6 +1,6 @@
-use std::{fmt, fmt::Display};
+use std::fmt::{Display, Formatter, Result};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::Block::{Divider, Header, Section};
 
@@ -37,7 +37,7 @@ impl From<Block> for Value {
 }
 
 impl Display for Block {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             Header(text) => write!(f, "Header: {text}"),
             Divider => write!(f, "----------"),
