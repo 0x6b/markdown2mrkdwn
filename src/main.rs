@@ -1,5 +1,11 @@
 #![cfg(feature = "bin")]
 
+use std::{
+    fs::read_to_string,
+    io::{Read, stdin},
+    path::PathBuf,
+};
+
 use anyhow::Result;
 use clap::Parser;
 use markdown2mrkdwn::Mrkdwn;
