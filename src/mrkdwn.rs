@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use markdown::{
     ParseOptions,
-    mdast::{AlignKind, List, Node, Table},
+    mdast::{AlignKind, Image, List, Node, Table},
     to_mdast,
 };
 use serde_json::{Value, to_string};
@@ -160,9 +160,7 @@ impl<'a> Mrkdwn<'a> {
                 }
                 Node::List(n) => vec![Section(self.handle_list(n, 0))],
                 Node::ListItem(n) => vec![Section(self.transform_to_mrkdwn(&n.children))],
-                Node::Paragraph(n) => {
-                    vec![Section(self.surround_nodes_with(&n.children, "", "\n", 0))]
-                }
+                Node::Paragraph(n) => self.handle_paragraph(&n.children),
                 Node::Strong(n) => {
                     vec![Section(self.surround_nodes_with(&n.children, "*", "*", 0))]
                 }
@@ -257,6 +255,57 @@ impl<'a> Mrkdwn<'a> {
             .collect();
 
         Block::Table { column_settings, rows }
+    }
+
+    /// Converts a Markdown paragraph into one or more blocks.
+    ///
+    /// Images are lifted into their own [image block]s, while the surrounding inline content is
+    /// kept as `section` blocks. A paragraph with no images becomes a single `section`.
+    ///
+    /// [image block]: https://docs.slack.dev/reference/block-kit/blocks/image-block/
+    fn handle_paragraph(&self, nodes: &[Node]) -> Vec<Block> {
+        if !nodes.iter().any(|node| matches!(node, Node::Image(_))) {
+            return vec![Block::Section(self.surround_nodes_with(nodes, "", "\n", 0))];
+        }
+
+        let mut blocks = Vec::new();
+        let mut buffer: Vec<Node> = Vec::new();
+        let flush = |buffer: &mut Vec<Node>, blocks: &mut Vec<Block>| {
+            if !buffer.is_empty() {
+                let text = self.transform_to_mrkdwn(buffer);
+                if !text.trim().is_empty() {
+                    blocks.push(Block::Section(format!("{text}\n")));
+                }
+                buffer.clear();
+            }
+        };
+
+        for node in nodes {
+            match node {
+                Node::Image(image) => {
+                    flush(&mut buffer, &mut blocks);
+                    blocks.push(Self::image_block(image));
+                }
+                other => buffer.push(other.clone()),
+            }
+        }
+        flush(&mut buffer, &mut blocks);
+
+        blocks
+    }
+
+    /// Builds an image block from a Markdown image node.
+    ///
+    /// Slack requires a non-empty `alt_text`, so the Markdown alt text is used when present,
+    /// falling back to the image title and finally the URL.
+    fn image_block(image: &Image) -> Block {
+        let title = image.title.clone().filter(|title| !title.trim().is_empty());
+        let alt_text = if image.alt.trim().is_empty() {
+            title.clone().unwrap_or_else(|| image.url.clone())
+        } else {
+            image.alt.clone()
+        };
+        Block::Image { url: image.url.clone(), alt_text, title }
     }
 
     /// Builds a single `rich_text` table cell from inline Markdown nodes.
