@@ -197,6 +197,20 @@ impl<'a> Mrkdwn<'a> {
         format!("{prefix}{s}{suffix}")
     }
 
+    /// Formats a mrkdwn `<url|text>` link.
+    ///
+    /// `|`, `<`, and `>` break Slack's link parsing and have no escape sequence inside a link.
+    /// In the URL they are percent-encoded, which keeps the URL equivalent; in the text `|` is
+    /// dropped (`<`/`>` in text are already HTML-escaped by [`Self::escape`]).
+    fn mrkdwn_link(url: &str, text: &str) -> String {
+        format!("<{}|{}>", Self::sanitize_url(url), text.replace('|', ""))
+    }
+
+    /// Percent-encodes the characters that terminate or split Slack's `<url|text>` syntax.
+    fn sanitize_url(url: &str) -> String {
+        url.replace('|', "%7C").replace('<', "%3C").replace('>', "%3E")
+    }
+
     /// Escapes the three mrkdwn control characters as HTML entities, as Slack requires for
     /// literal text in `mrkdwn` text objects.
     ///
@@ -344,9 +358,9 @@ impl<'a> Mrkdwn<'a> {
     /// embedded. Falls back to a bare `<url>` link when the image has no alt text.
     fn image_to_link(image: &Image) -> String {
         if image.alt.trim().is_empty() {
-            format!("<{}>", image.url)
+            format!("<{}>", Self::sanitize_url(&image.url))
         } else {
-            format!("<{}|{}>", image.url, Self::escape(&image.alt))
+            Self::mrkdwn_link(&image.url, &Self::escape(&image.alt))
         }
     }
 
