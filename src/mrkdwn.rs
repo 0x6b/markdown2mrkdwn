@@ -4,7 +4,7 @@ use markdown::{
     mdast::{AlignKind, Image, List, Node, Table},
     to_mdast,
 };
-use serde_json::{Value, to_string};
+use serde_json::{Map, Value, json, to_string};
 
 use crate::Block;
 
@@ -326,7 +326,7 @@ impl<'a> Mrkdwn<'a> {
         if elements.is_empty() {
             elements.push(Self::text_element("", Style::default()));
         }
-        serde_json::json!({
+        json!({
         "type": "rich_text",
         "elements": [ { "type": "rich_text_section", "elements": elements } ],
         })
@@ -340,18 +340,18 @@ impl<'a> Mrkdwn<'a> {
             match node {
                 Node::Text(n) => elements.push(Self::text_element(&n.value, style)),
                 Node::Strong(n) => {
-                    elements.extend(Self::rich_text_elements(&n.children, style.bold()))
+                    elements.extend(Self::rich_text_elements(&n.children, style.bold()));
                 }
                 Node::Emphasis(n) => {
-                    elements.extend(Self::rich_text_elements(&n.children, style.italic()))
+                    elements.extend(Self::rich_text_elements(&n.children, style.italic()));
                 }
                 Node::Delete(n) => {
-                    elements.extend(Self::rich_text_elements(&n.children, style.strike()))
+                    elements.extend(Self::rich_text_elements(&n.children, style.strike()));
                 }
                 Node::InlineCode(n) => elements.push(Self::text_element(&n.value, style.code())),
                 Node::Break(_) => elements.push(Self::text_element("\n", style)),
                 Node::Link(n) => {
-                    let mut element = serde_json::json!({
+                    let mut element = json!({
                         "type": "link",
                         "url": n.url,
                         "text": Self::plain_text(&n.children),
@@ -369,7 +369,7 @@ impl<'a> Mrkdwn<'a> {
 
     /// Builds a `text` element, attaching a `style` object only when some style is active.
     fn text_element(text: &str, style: Style) -> Value {
-        let mut element = serde_json::json!({ "type": "text", "text": text });
+        let mut element = json!({ "type": "text", "text": text });
         if let Some(value) = style.to_value() {
             element["style"] = value;
         }
@@ -426,7 +426,7 @@ impl Style {
         if !(self.bold || self.italic || self.strike || self.code) {
             return None;
         }
-        let mut value = serde_json::Map::new();
+        let mut value = Map::new();
         if self.bold {
             value.insert("bold".to_string(), Value::Bool(true));
         }

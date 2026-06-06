@@ -1,8 +1,11 @@
 use std::fs::read_to_string;
+
+use markdown2mrkdwn::Mrkdwn;
+
 fn main() {
     println!(
         "{}",
-        markdown2mrkdwn::Mrkdwn::from(read_to_string("examples/sample.md").unwrap().as_str())
+        Mrkdwn::from(read_to_string("examples/sample.md").unwrap().as_str())
             .blocks_stringify()
             .unwrap()
     );
