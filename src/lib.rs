@@ -88,6 +88,11 @@ mod test {
             r#"{ "blocks": [ { "text": { "text": "<https://slack.com/|Slack>\n", "type": "mrkdwn" }, "type": "section" } ] }"#
         );
         test!(
+            link_with_pipe,
+            "[a|b](https://x.com/?q=a|b)",
+            r#"{ "blocks": [ { "text": { "text": "<https://x.com/?q=a%7Cb|ab>\n", "type": "mrkdwn" }, "type": "section" } ] }"#
+        );
+        test!(
             lists,
             "- First\n- Second\n- Third",
             r#"{ "blocks": [ { "text": { "text": "•   First\n•   Second\n•   Third\n\n", "type": "mrkdwn" }, "type": "section" } ] }"#
@@ -210,6 +215,18 @@ Another paragraph.
             "*Heading 1*\\n\\n*Heading 2*\\n\\n*Heading 3*"
         );
         test!(link, "[Slack](https://slack.com/)", "<https://slack.com/|Slack>");
+        test!(
+            link_with_pipe_in_url,
+            "[text](https://x.com/?q=a|b)",
+            "<https://x.com/?q=a%7Cb|text>"
+        );
+        test!(link_with_pipe_in_text, "[a|b](https://x.com/)", "<https://x.com/|ab>");
+        test!(
+            link_with_pipe_and_angle_brackets,
+            "[a|b>c](https://x.com/?q=a|b)",
+            "<https://x.com/?q=a%7Cb|ab&gt;c>"
+        );
+        test!(image_with_pipe, "![a|b](https://x.com/?q=a|b)", "<https://x.com/?q=a%7Cb|ab>");
         test!(lists, "- First\n- Second\n- Third", "•   First\\n•   Second\\n•   Third");
         test!(ordered_lists, "1. First\n1. Second\n1. Third", "1.  First\\n2.  Second\\n3.  Third");
         test!(
