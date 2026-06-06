@@ -2,13 +2,23 @@ use std::fmt::{Display, Formatter, Result};
 
 use serde_json::{Value, json};
 
-use crate::Block::{Divider, Header, Section, Table};
+use crate::Block::{Divider, Header, Image, Section, Table};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Block {
     Header(String),
     Divider,
     Section(String),
+    /// An [image block](https://docs.slack.dev/reference/block-kit/blocks/image-block/).
+    ///
+    /// - `url`: the publicly hosted image URL (`image_url`).
+    /// - `alt_text`: a plain-text summary of the image (required by Slack).
+    /// - `title`: an optional plain-text title rendered above the image.
+    Image {
+        url: String,
+        alt_text: String,
+        title: Option<String>,
+    },
     /// A [table block](https://docs.slack.dev/reference/block-kit/blocks/table-block/).
     ///
     /// - `column_settings`: per-column alignment (`left`/`center`/`right`). `None` keeps the
@@ -41,6 +51,17 @@ impl From<Block> for Value {
                     "text": text,
                 }
             }),
+            Image { url, alt_text, title } => {
+                let mut image = json!({
+                    "type": "image",
+                    "image_url": url,
+                    "alt_text": alt_text,
+                });
+                if let Some(title) = title {
+                    image["title"] = json!({ "type": "plain_text", "text": title });
+                }
+                image
+            }
             Table { column_settings, rows } => {
                 let mut table = json!({
                     "type": "table",
@@ -73,6 +94,7 @@ impl Display for Block {
             Header(text) => write!(f, "Header: {text}"),
             Divider => write!(f, "----------"),
             Section(text) => write!(f, "Section: {text}"),
+            Image { url, .. } => write!(f, "Image: {url}"),
             Table { rows, .. } => write!(f, "Table: {} rows", rows.len()),
         }
     }

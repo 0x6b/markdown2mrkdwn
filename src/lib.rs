@@ -99,6 +99,16 @@ mod test {
         );
         test!(thematic_breaks, "---", r#"{ "blocks": [ { "type": "divider" } ] }"#);
         test!(
+            image,
+            "![A cute kitten](https://example.com/kitten.png \"Kitten\")",
+            r#"{ "blocks": [ { "type": "image", "image_url": "https://example.com/kitten.png", "alt_text": "A cute kitten", "title": { "type": "plain_text", "text": "Kitten" } } ] }"#
+        );
+        test!(
+            image_inline,
+            "before ![alt](https://example.com/x.png) after",
+            r#"{ "blocks": [ { "text": { "text": "before \n", "type": "mrkdwn" }, "type": "section" }, { "type": "image", "image_url": "https://example.com/x.png", "alt_text": "alt" }, { "text": { "text": " after\n", "type": "mrkdwn" }, "type": "section" } ] }"#
+        );
+        test!(
             tables,
             "| Name | Link |\n|:-----|-----:|\n| **bold** | [Slack](https://slack.com) |",
             r#"{ "blocks": [ { "type": "table", "column_settings": [ { "align": "left" }, { "align": "right" } ], "rows": [ [ { "type": "rich_text", "elements": [ { "type": "rich_text_section", "elements": [ { "type": "text", "text": "Name" } ] } ] }, { "type": "rich_text", "elements": [ { "type": "rich_text_section", "elements": [ { "type": "text", "text": "Link" } ] } ] } ], [ { "type": "rich_text", "elements": [ { "type": "rich_text_section", "elements": [ { "type": "text", "text": "bold", "style": { "bold": true } } ] } ] }, { "type": "rich_text", "elements": [ { "type": "rich_text_section", "elements": [ { "type": "link", "url": "https://slack.com", "text": "Slack" } ] } ] } ] ] } ] }"#
