@@ -25,7 +25,7 @@ Run the simple CLI tool to convert a markdown file to mrkdwn.
 $ cargo run --quiet --features=bin -- --help
 Convert markdown to mrkdwn format and dump it to stdout
 
-Usage: 
+Usage: markdown2mrkdwn [OPTIONS] [PATH]
 
 Arguments:
   [PATH]  Path to a markdown file to convert to mrkdwn. If not provided, the content will be read from stdin
