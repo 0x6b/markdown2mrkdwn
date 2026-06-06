@@ -4,7 +4,7 @@ use markdown::{
     mdast::{AlignKind, Image, List, Node, Table},
     to_mdast,
 };
-use serde_json::{Value, to_string};
+use serde_json::{Map, Value, json, to_string};
 
 use crate::Block;
 
@@ -19,16 +19,14 @@ pub struct Mrkdwn<'a> {
     text: &'a str,
 }
 
-impl<'a> Mrkdwn<'a> {
-    /// Constructs a new instance of `Mrkdwn` with given text.
-    ///
-    /// # Arguments
-    ///
-    /// - `text` - A GitHub Flavored Markdown.
-    pub fn from(text: &'a str) -> Self {
+impl<'a> From<&'a str> for Mrkdwn<'a> {
+    /// Constructs a new instance of `Mrkdwn` from the given GitHub Flavored Markdown text.
+    fn from(text: &'a str) -> Self {
         Self { text }
     }
+}
 
+impl<'a> Mrkdwn<'a> {
     /// This method is responsible for markdownifying the text in `self`.
     ///
     /// # Returns
@@ -53,7 +51,6 @@ impl<'a> Mrkdwn<'a> {
         result = result
             .trim()
             .replace('"', "\\\"")
-            .replace('&', "&amp;")
             .replace('\n', "\\n")
             .trim_end_matches("\\n")
             .to_string();
@@ -104,13 +101,13 @@ impl<'a> Mrkdwn<'a> {
                     self.surround_nodes_with(&n.children, "> ", "", indent_level)
                 }
                 Node::Break(_) => "\n".to_string(),
-                Node::Code(n) => Self::surround_with(&n.value, "```\n", "\n```\n"),
+                Node::Code(n) => Self::surround_with(&Self::escape(&n.value), "```\n", "\n```\n"),
                 Node::Delete(n) => self.surround_nodes_with(&n.children, "~", "~", indent_level),
                 Node::Emphasis(n) => self.surround_nodes_with(&n.children, "_", "_", indent_level),
                 Node::Heading(n) => {
                     self.surround_nodes_with(&n.children, "*", "*\n\n", indent_level)
                 }
-                Node::InlineCode(n) => Self::surround_with(&n.value, "`", "`"),
+                Node::InlineCode(n) => Self::surround_with(&Self::escape(&n.value), "`", "`"),
                 Node::Link(n) => format!(
                     "<{}|{}>",
                     &n.url,
@@ -122,7 +119,7 @@ impl<'a> Mrkdwn<'a> {
                 }
                 Node::Paragraph(n) => self.surround_nodes_with(&n.children, "", "\n", indent_level),
                 Node::Strong(n) => self.surround_nodes_with(&n.children, "*", "*", indent_level),
-                Node::Text(n) => n.value.clone(),
+                Node::Text(n) => Self::escape(&n.value),
                 Node::ThematicBreak(_) => "\n----------\n".to_string(),
                 _ => String::new(),
             })
@@ -139,22 +136,25 @@ impl<'a> Mrkdwn<'a> {
                     vec![Section(self.surround_nodes_with(&n.children, "> ", "", 0))]
                 }
                 Node::Break(_) => vec![Section("\n".to_string())],
-                Node::Code(n) => vec![Section(Self::surround_with(&n.value, "```\n", "\n```\n"))],
+                Node::Code(n) => {
+                    vec![Section(Self::surround_with(&Self::escape(&n.value), "```\n", "\n```\n"))]
+                }
                 Node::Delete(n) => {
                     vec![Section(self.surround_nodes_with(&n.children, "~", "~", 0))]
                 }
                 Node::Emphasis(n) => {
                     vec![Section(self.surround_nodes_with(&n.children, "_", "_", 0))]
                 }
-                Node::Heading(n) => {
-                    let text = self.transform_to_mrkdwn(&n.children);
-                    match n.depth {
-                        1 => vec![Header(text), Divider],
-                        2 => vec![Header(text)],
-                        _ => vec![Section(self.surround_nodes_with(&n.children, "*", "*", 0))],
-                    }
+                Node::Heading(n) => match n.depth {
+                    // `header` blocks render as `plain_text`, so use the unformatted text and
+                    // drop any inline markup rather than leaking literal `*`/`_` characters.
+                    1 => vec![Header(Self::plain_text(&n.children)), Divider],
+                    2 => vec![Header(Self::plain_text(&n.children))],
+                    _ => vec![Section(self.surround_nodes_with(&n.children, "*", "*", 0))],
+                },
+                Node::InlineCode(n) => {
+                    vec![Section(Self::surround_with(&Self::escape(&n.value), "`", "`"))]
                 }
-                Node::InlineCode(n) => vec![Section(Self::surround_with(&n.value, "`", "`"))],
                 Node::Link(n) => {
                     vec![Section(format!("<{}|{}>", &n.url, self.transform_to_mrkdwn(&n.children)))]
                 }
@@ -165,7 +165,7 @@ impl<'a> Mrkdwn<'a> {
                     vec![Section(self.surround_nodes_with(&n.children, "*", "*", 0))]
                 }
                 Node::Table(n) => vec![Self::handle_table(n)],
-                Node::Text(n) => vec![Section(n.value.clone())],
+                Node::Text(n) => vec![Section(Self::escape(&n.value))],
                 Node::ThematicBreak(_) => vec![Divider],
                 _ => vec![],
             })
@@ -174,6 +174,17 @@ impl<'a> Mrkdwn<'a> {
 
     fn surround_with(s: &str, prefix: &str, suffix: &str) -> String {
         format!("{prefix}{s}{suffix}")
+    }
+
+    /// Escapes the three mrkdwn control characters as HTML entities, as Slack requires for
+    /// literal text in `mrkdwn` text objects.
+    ///
+    /// Only `&`, `<`, and `>` are escaped, and only on literal text/code content. Syntax that
+    /// this crate generates itself (link delimiters, blockquote/list markers) and URLs are left
+    /// untouched so they keep their special meaning. `&` is escaped first to avoid
+    /// double-escaping the entities produced for `<` and `>`.
+    fn escape(text: &str) -> String {
+        text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
     }
 
     fn surround_nodes_with(
@@ -315,7 +326,7 @@ impl<'a> Mrkdwn<'a> {
         if elements.is_empty() {
             elements.push(Self::text_element("", Style::default()));
         }
-        serde_json::json!({
+        json!({
         "type": "rich_text",
         "elements": [ { "type": "rich_text_section", "elements": elements } ],
         })
@@ -329,18 +340,18 @@ impl<'a> Mrkdwn<'a> {
             match node {
                 Node::Text(n) => elements.push(Self::text_element(&n.value, style)),
                 Node::Strong(n) => {
-                    elements.extend(Self::rich_text_elements(&n.children, style.bold()))
+                    elements.extend(Self::rich_text_elements(&n.children, style.bold()));
                 }
                 Node::Emphasis(n) => {
-                    elements.extend(Self::rich_text_elements(&n.children, style.italic()))
+                    elements.extend(Self::rich_text_elements(&n.children, style.italic()));
                 }
                 Node::Delete(n) => {
-                    elements.extend(Self::rich_text_elements(&n.children, style.strike()))
+                    elements.extend(Self::rich_text_elements(&n.children, style.strike()));
                 }
                 Node::InlineCode(n) => elements.push(Self::text_element(&n.value, style.code())),
                 Node::Break(_) => elements.push(Self::text_element("\n", style)),
                 Node::Link(n) => {
-                    let mut element = serde_json::json!({
+                    let mut element = json!({
                         "type": "link",
                         "url": n.url,
                         "text": Self::plain_text(&n.children),
@@ -358,7 +369,7 @@ impl<'a> Mrkdwn<'a> {
 
     /// Builds a `text` element, attaching a `style` object only when some style is active.
     fn text_element(text: &str, style: Style) -> Value {
-        let mut element = serde_json::json!({ "type": "text", "text": text });
+        let mut element = json!({ "type": "text", "text": text });
         if let Some(value) = style.to_value() {
             element["style"] = value;
         }
@@ -376,6 +387,7 @@ impl<'a> Mrkdwn<'a> {
                 Node::Strong(n) => Self::plain_text(&n.children),
                 Node::Emphasis(n) => Self::plain_text(&n.children),
                 Node::Delete(n) => Self::plain_text(&n.children),
+                Node::Link(n) => Self::plain_text(&n.children),
                 _ => String::new(),
             })
             .collect()
@@ -414,7 +426,7 @@ impl Style {
         if !(self.bold || self.italic || self.strike || self.code) {
             return None;
         }
-        let mut value = serde_json::Map::new();
+        let mut value = Map::new();
         if self.bold {
             value.insert("bold".to_string(), Value::Bool(true));
         }
