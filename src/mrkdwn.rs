@@ -19,16 +19,14 @@ pub struct Mrkdwn<'a> {
     text: &'a str,
 }
 
-impl<'a> Mrkdwn<'a> {
-    /// Constructs a new instance of `Mrkdwn` with given text.
-    ///
-    /// # Arguments
-    ///
-    /// - `text` - A GitHub Flavored Markdown.
-    pub fn from(text: &'a str) -> Self {
+impl<'a> From<&'a str> for Mrkdwn<'a> {
+    /// Constructs a new instance of `Mrkdwn` from the given GitHub Flavored Markdown text.
+    fn from(text: &'a str) -> Self {
         Self { text }
     }
+}
 
+impl<'a> Mrkdwn<'a> {
     /// This method is responsible for markdownifying the text in `self`.
     ///
     /// # Returns
