@@ -8,6 +8,17 @@ use serde_json::{Map, Value, json, to_string};
 
 use crate::Block;
 
+/// Limits Slack enforces on Block Kit messages. Exceeding any of them makes the API reject the
+/// message, so [`Mrkdwn::blockify`] returns an error instead of emitting an invalid payload.
+///
+/// See <https://docs.slack.dev/reference/block-kit/blocks/>.
+const MAX_BLOCKS: usize = 50;
+const MAX_HEADER_CHARS: usize = 150;
+const MAX_SECTION_CHARS: usize = 3000;
+const MAX_ALT_TEXT_CHARS: usize = 2000;
+const MAX_TABLE_ROWS: usize = 100;
+const MAX_TABLE_COLS: usize = 10;
+
 /// `Mrkdwn` is a public struct for handling GitHub Flavored Markdown text.
 /// Note that the `text` field is not accessible from outside.
 ///
@@ -80,13 +91,69 @@ impl<'a> Mrkdwn<'a> {
     ///
     /// - `Ok(Vec<Block>)`: If the process is successful, this method will return a Vec of Block.
     /// - `Err(String)`: In case of an error during the process, it returns an Error.
+    ///
+    /// # Errors
+    ///
+    /// Besides parse failures, this returns an error when the result would exceed a limit Slack
+    /// enforces: 50 blocks per message, 150 characters of header text, 3000 characters of
+    /// section text, 2000 characters of image `alt_text`, or 100 rows / 10 columns per table.
     pub fn blockify(&self) -> Result<Vec<Block>> {
         let ast = to_mdast(self.text, &ParseOptions::gfm())
             .map_err(|e| anyhow!("Failed to parse markdown: {e}"))?;
 
         let root = ast.children().ok_or_else(|| anyhow!("no input?"))?;
 
-        self.transform_to_blocks(root)
+        let blocks = self.transform_to_blocks(root)?;
+        Self::validate_blocks(&blocks)?;
+        Ok(blocks)
+    }
+
+    /// Checks the converted blocks against the limits Slack enforces, so an over-limit message
+    /// fails here instead of being rejected by the Slack API.
+    fn validate_blocks(blocks: &[Block]) -> Result<()> {
+        if blocks.len() > MAX_BLOCKS {
+            return Err(anyhow!("message has {} blocks, Slack allows {MAX_BLOCKS}", blocks.len()));
+        }
+
+        for block in blocks {
+            match block {
+                Block::Header(text) if text.chars().count() > MAX_HEADER_CHARS => {
+                    return Err(anyhow!(
+                        "header text has {} characters, Slack allows {MAX_HEADER_CHARS}",
+                        text.chars().count()
+                    ));
+                }
+                Block::Section(text) if text.chars().count() > MAX_SECTION_CHARS => {
+                    return Err(anyhow!(
+                        "section text has {} characters, Slack allows {MAX_SECTION_CHARS}",
+                        text.chars().count()
+                    ));
+                }
+                Block::Image { alt_text, .. } if alt_text.chars().count() > MAX_ALT_TEXT_CHARS => {
+                    return Err(anyhow!(
+                        "image alt_text has {} characters, Slack allows {MAX_ALT_TEXT_CHARS}",
+                        alt_text.chars().count()
+                    ));
+                }
+                Block::Table { rows, .. } => {
+                    if rows.len() > MAX_TABLE_ROWS {
+                        return Err(anyhow!(
+                            "table has {} rows, Slack allows {MAX_TABLE_ROWS}",
+                            rows.len()
+                        ));
+                    }
+                    if let Some(row) = rows.iter().find(|row| row.len() > MAX_TABLE_COLS) {
+                        return Err(anyhow!(
+                            "table has {} columns, Slack allows {MAX_TABLE_COLS}",
+                            row.len()
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 
     fn transform_to_mrkdwn(&self, nodes: &[Node]) -> String {
@@ -120,10 +187,9 @@ impl<'a> Mrkdwn<'a> {
                 }
                 Node::Image(n) => Self::image_to_link(n),
                 Node::InlineCode(n) => Self::surround_with(&Self::escape(&n.value), "`", "`"),
-                Node::Link(n) => format!(
-                    "<{}|{}>",
+                Node::Link(n) => Self::mrkdwn_link(
                     &n.url,
-                    self.transform_to_mrkdwn_with_indent(&n.children, indent_level)
+                    &self.transform_to_mrkdwn_with_indent(&n.children, indent_level),
                 ),
                 Node::List(n) => self.handle_list(n, indent_level),
                 Node::ListItem(n) => {
@@ -177,7 +243,7 @@ impl<'a> Mrkdwn<'a> {
                     vec![Section(Self::surround_with(&Self::escape(&n.value), "`", "`"))]
                 }
                 Node::Link(n) => {
-                    vec![Section(format!("<{}|{}>", &n.url, self.transform_to_mrkdwn(&n.children)))]
+                    vec![Section(Self::mrkdwn_link(&n.url, &self.transform_to_mrkdwn(&n.children)))]
                 }
                 Node::List(n) => vec![Section(self.handle_list(n, 0))],
                 Node::ListItem(n) => vec![Section(self.transform_to_mrkdwn(&n.children))],

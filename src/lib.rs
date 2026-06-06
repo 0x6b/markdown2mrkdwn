@@ -174,6 +174,79 @@ Another paragraph.
         );
     }
 
+    mod limits {
+        use crate::Mrkdwn;
+
+        #[test]
+        fn header_at_150_chars_is_ok() {
+            let input = format!("# {}", "a".repeat(150));
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_ok());
+        }
+
+        #[test]
+        fn header_over_150_chars_is_err() {
+            let input = format!("# {}", "a".repeat(151));
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_err());
+        }
+
+        #[test]
+        fn section_at_3000_chars_is_ok() {
+            // A 2999-char paragraph renders as 3000 chars (trailing newline included).
+            let input = "a".repeat(2999);
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_ok());
+        }
+
+        #[test]
+        fn section_over_3000_chars_is_err() {
+            let input = "a".repeat(3000);
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_err());
+        }
+
+        #[test]
+        fn alt_text_over_2000_chars_is_err() {
+            let input = format!("![{}](https://example.com/x.png)", "a".repeat(2001));
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_err());
+        }
+
+        #[test]
+        fn table_over_100_rows_is_err() {
+            let mut input = String::from("| h |\n|---|\n");
+            for _ in 0..100 {
+                input.push_str("| c |\n");
+            }
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_err());
+        }
+
+        #[test]
+        fn table_at_100_rows_is_ok() {
+            let mut input = String::from("| h |\n|---|\n");
+            for _ in 0..99 {
+                input.push_str("| c |\n");
+            }
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_ok());
+        }
+
+        #[test]
+        fn table_over_10_columns_is_err() {
+            let header = format!("|{}", " h |".repeat(11));
+            let delimiter = format!("|{}", "---|".repeat(11));
+            let input = format!("{header}\n{delimiter}\n");
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_err());
+        }
+
+        #[test]
+        fn over_50_blocks_is_err() {
+            let input = "---\n".repeat(51);
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_err());
+        }
+
+        #[test]
+        fn at_50_blocks_is_ok() {
+            let input = "---\n".repeat(50);
+            assert!(Mrkdwn::from(input.as_str()).blockify().is_ok());
+        }
+    }
+
     mod mrkdwnify {
         use crate::Mrkdwn;
 
