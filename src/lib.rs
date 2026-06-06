@@ -25,7 +25,12 @@ mod test {
         test!(
             escaping1,
             "&",
-            r#"{ "blocks": [ { "text": { "text": "&\n", "type": "mrkdwn" }, "type": "section" } ] }"#
+            r#"{ "blocks": [ { "text": { "text": "&amp;\n", "type": "mrkdwn" }, "type": "section" } ] }"#
+        );
+        test!(
+            escaping_angle_brackets,
+            "1 < 2 > 0",
+            r#"{ "blocks": [ { "text": { "text": "1 &lt; 2 &gt; 0\n", "type": "mrkdwn" }, "type": "section" } ] }"#
         );
         test!(
             escaping2,
@@ -98,6 +103,11 @@ mod test {
             r#"{ "blocks": [ { "text": { "text": "•   First\n    •   Second\n        •   Third\n    •   Fourth\n        •   Fifth\n        •   Sixth\n\n•   Seventh\n\n", "type": "mrkdwn" }, "type": "section" } ] }"#
         );
         test!(thematic_breaks, "---", r#"{ "blocks": [ { "type": "divider" } ] }"#);
+        test!(
+            header_strips_markup,
+            "# **Bold** _heading_",
+            r#"{ "blocks": [ { "type": "header", "text": { "type": "plain_text", "text": "Bold heading", "emoji": true } }, { "type": "divider" } ] }"#
+        );
         test!(
             image,
             "![A cute kitten](https://example.com/kitten.png \"Kitten\")",
@@ -172,6 +182,7 @@ Another paragraph.
         }
 
         test!(escaping1, "&", "&amp;");
+        test!(escaping_angle_brackets, "1 < 2 > 0", "1 &lt; 2 &gt; 0");
         test!(escaping2, "\"", "\\\"");
         test!(emphasis, "*emphasis*", "_emphasis_");
         test!(italic, "_italic_", "_italic_");

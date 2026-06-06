@@ -51,7 +51,6 @@ impl<'a> Mrkdwn<'a> {
         result = result
             .trim()
             .replace('"', "\\\"")
-            .replace('&', "&amp;")
             .replace('\n', "\\n")
             .trim_end_matches("\\n")
             .to_string();
@@ -102,13 +101,13 @@ impl<'a> Mrkdwn<'a> {
                     self.surround_nodes_with(&n.children, "> ", "", indent_level)
                 }
                 Node::Break(_) => "\n".to_string(),
-                Node::Code(n) => Self::surround_with(&n.value, "```\n", "\n```\n"),
+                Node::Code(n) => Self::surround_with(&Self::escape(&n.value), "```\n", "\n```\n"),
                 Node::Delete(n) => self.surround_nodes_with(&n.children, "~", "~", indent_level),
                 Node::Emphasis(n) => self.surround_nodes_with(&n.children, "_", "_", indent_level),
                 Node::Heading(n) => {
                     self.surround_nodes_with(&n.children, "*", "*\n\n", indent_level)
                 }
-                Node::InlineCode(n) => Self::surround_with(&n.value, "`", "`"),
+                Node::InlineCode(n) => Self::surround_with(&Self::escape(&n.value), "`", "`"),
                 Node::Link(n) => format!(
                     "<{}|{}>",
                     &n.url,
@@ -120,7 +119,7 @@ impl<'a> Mrkdwn<'a> {
                 }
                 Node::Paragraph(n) => self.surround_nodes_with(&n.children, "", "\n", indent_level),
                 Node::Strong(n) => self.surround_nodes_with(&n.children, "*", "*", indent_level),
-                Node::Text(n) => n.value.clone(),
+                Node::Text(n) => Self::escape(&n.value),
                 Node::ThematicBreak(_) => "\n----------\n".to_string(),
                 _ => String::new(),
             })
@@ -137,22 +136,25 @@ impl<'a> Mrkdwn<'a> {
                     vec![Section(self.surround_nodes_with(&n.children, "> ", "", 0))]
                 }
                 Node::Break(_) => vec![Section("\n".to_string())],
-                Node::Code(n) => vec![Section(Self::surround_with(&n.value, "```\n", "\n```\n"))],
+                Node::Code(n) => {
+                    vec![Section(Self::surround_with(&Self::escape(&n.value), "```\n", "\n```\n"))]
+                }
                 Node::Delete(n) => {
                     vec![Section(self.surround_nodes_with(&n.children, "~", "~", 0))]
                 }
                 Node::Emphasis(n) => {
                     vec![Section(self.surround_nodes_with(&n.children, "_", "_", 0))]
                 }
-                Node::Heading(n) => {
-                    let text = self.transform_to_mrkdwn(&n.children);
-                    match n.depth {
-                        1 => vec![Header(text), Divider],
-                        2 => vec![Header(text)],
-                        _ => vec![Section(self.surround_nodes_with(&n.children, "*", "*", 0))],
-                    }
+                Node::Heading(n) => match n.depth {
+                    // `header` blocks render as `plain_text`, so use the unformatted text and
+                    // drop any inline markup rather than leaking literal `*`/`_` characters.
+                    1 => vec![Header(Self::plain_text(&n.children)), Divider],
+                    2 => vec![Header(Self::plain_text(&n.children))],
+                    _ => vec![Section(self.surround_nodes_with(&n.children, "*", "*", 0))],
+                },
+                Node::InlineCode(n) => {
+                    vec![Section(Self::surround_with(&Self::escape(&n.value), "`", "`"))]
                 }
-                Node::InlineCode(n) => vec![Section(Self::surround_with(&n.value, "`", "`"))],
                 Node::Link(n) => {
                     vec![Section(format!("<{}|{}>", &n.url, self.transform_to_mrkdwn(&n.children)))]
                 }
@@ -163,7 +165,7 @@ impl<'a> Mrkdwn<'a> {
                     vec![Section(self.surround_nodes_with(&n.children, "*", "*", 0))]
                 }
                 Node::Table(n) => vec![Self::handle_table(n)],
-                Node::Text(n) => vec![Section(n.value.clone())],
+                Node::Text(n) => vec![Section(Self::escape(&n.value))],
                 Node::ThematicBreak(_) => vec![Divider],
                 _ => vec![],
             })
@@ -172,6 +174,17 @@ impl<'a> Mrkdwn<'a> {
 
     fn surround_with(s: &str, prefix: &str, suffix: &str) -> String {
         format!("{prefix}{s}{suffix}")
+    }
+
+    /// Escapes the three mrkdwn control characters as HTML entities, as Slack requires for
+    /// literal text in `mrkdwn` text objects.
+    ///
+    /// Only `&`, `<`, and `>` are escaped, and only on literal text/code content. Syntax that
+    /// this crate generates itself (link delimiters, blockquote/list markers) and URLs are left
+    /// untouched so they keep their special meaning. `&` is escaped first to avoid
+    /// double-escaping the entities produced for `<` and `>`.
+    fn escape(text: &str) -> String {
+        text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
     }
 
     fn surround_nodes_with(
@@ -374,6 +387,7 @@ impl<'a> Mrkdwn<'a> {
                 Node::Strong(n) => Self::plain_text(&n.children),
                 Node::Emphasis(n) => Self::plain_text(&n.children),
                 Node::Delete(n) => Self::plain_text(&n.children),
+                Node::Link(n) => Self::plain_text(&n.children),
                 _ => String::new(),
             })
             .collect()

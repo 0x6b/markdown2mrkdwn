@@ -37,13 +37,15 @@ fn main() -> Result<()> {
     print!(
         "{}",
         if blocks {
-            Mrkdwn::from(&input).blocks_stringify()?
+            Mrkdwn::from(input.as_str()).blocks_stringify()?
         } else {
-            Mrkdwn::from(&input)
+            Mrkdwn::from(input.as_str())
                 .mrkdwnify()?
                 .replace("\\\"", "\"")
-                .replace("&amp;", "&")
                 .replace("\\n", "\n")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
         }
     );
 
