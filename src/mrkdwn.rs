@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use markdown::{
     ParseOptions,
-    mdast::{List, Node},
+    mdast::{AlignKind, List, Node, Table},
     to_mdast,
 };
 use serde_json::{Value, to_string};
@@ -166,6 +166,7 @@ impl<'a> Mrkdwn<'a> {
                 Node::Strong(n) => {
                     vec![Section(self.surround_nodes_with(&n.children, "*", "*", 0))]
                 }
+                Node::Table(n) => vec![Self::handle_table(n)],
                 Node::Text(n) => vec![Section(n.value.clone())],
                 Node::ThematicBreak(_) => vec![Divider],
                 _ => vec![],
@@ -218,5 +219,165 @@ impl<'a> Mrkdwn<'a> {
             })
             .replace("\n\n", "\n")
             + "\n"
+    }
+
+    /// Converts a Markdown table into a Slack [table block].
+    ///
+    /// Each cell is rendered as a `rich_text` cell so that inline formatting (bold, italic,
+    /// strikethrough, inline code, and links) is preserved.
+    ///
+    /// [table block]: https://docs.slack.dev/reference/block-kit/blocks/table-block/
+    fn handle_table(table: &Table) -> Block {
+        let column_settings = table
+            .align
+            .iter()
+            .map(|align| match align {
+                AlignKind::Left => Some("left".to_string()),
+                AlignKind::Center => Some("center".to_string()),
+                AlignKind::Right => Some("right".to_string()),
+                AlignKind::None => None,
+            })
+            .collect();
+
+        let rows = table
+            .children
+            .iter()
+            .filter_map(|row| match row {
+                Node::TableRow(row) => Some(
+                    row.children
+                        .iter()
+                        .map(|cell| match cell {
+                            Node::TableCell(cell) => Self::table_cell(&cell.children),
+                            _ => Self::table_cell(&[]),
+                        })
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .collect();
+
+        Block::Table { column_settings, rows }
+    }
+
+    /// Builds a single `rich_text` table cell from inline Markdown nodes.
+    fn table_cell(nodes: &[Node]) -> Value {
+        let mut elements = Self::rich_text_elements(nodes, Style::default());
+        // Slack rejects a `rich_text_section` with no elements, so emit an empty text element.
+        if elements.is_empty() {
+            elements.push(Self::text_element("", Style::default()));
+        }
+        serde_json::json!({
+        "type": "rich_text",
+        "elements": [ { "type": "rich_text_section", "elements": elements } ],
+        })
+    }
+
+    /// Recursively converts inline Markdown nodes into Slack `rich_text` section elements,
+    /// carrying the active text style through nested formatting nodes.
+    fn rich_text_elements(nodes: &[Node], style: Style) -> Vec<Value> {
+        let mut elements = Vec::new();
+        for node in nodes {
+            match node {
+                Node::Text(n) => elements.push(Self::text_element(&n.value, style)),
+                Node::Strong(n) => {
+                    elements.extend(Self::rich_text_elements(&n.children, style.bold()))
+                }
+                Node::Emphasis(n) => {
+                    elements.extend(Self::rich_text_elements(&n.children, style.italic()))
+                }
+                Node::Delete(n) => {
+                    elements.extend(Self::rich_text_elements(&n.children, style.strike()))
+                }
+                Node::InlineCode(n) => elements.push(Self::text_element(&n.value, style.code())),
+                Node::Break(_) => elements.push(Self::text_element("\n", style)),
+                Node::Link(n) => {
+                    let mut element = serde_json::json!({
+                        "type": "link",
+                        "url": n.url,
+                        "text": Self::plain_text(&n.children),
+                    });
+                    if let Some(value) = style.to_value() {
+                        element["style"] = value;
+                    }
+                    elements.push(element);
+                }
+                _ => {}
+            }
+        }
+        elements
+    }
+
+    /// Builds a `text` element, attaching a `style` object only when some style is active.
+    fn text_element(text: &str, style: Style) -> Value {
+        let mut element = serde_json::json!({ "type": "text", "text": text });
+        if let Some(value) = style.to_value() {
+            element["style"] = value;
+        }
+        element
+    }
+
+    /// Flattens inline nodes into plain text, used for the `text` of a `rich_text` link element
+    /// (Slack link elements take a plain string, not nested formatting).
+    fn plain_text(nodes: &[Node]) -> String {
+        nodes
+            .iter()
+            .map(|node| match node {
+                Node::Text(n) => n.value.clone(),
+                Node::InlineCode(n) => n.value.clone(),
+                Node::Strong(n) => Self::plain_text(&n.children),
+                Node::Emphasis(n) => Self::plain_text(&n.children),
+                Node::Delete(n) => Self::plain_text(&n.children),
+                _ => String::new(),
+            })
+            .collect()
+    }
+}
+
+/// Active inline text style while building Slack `rich_text` elements.
+#[derive(Clone, Copy, Default)]
+struct Style {
+    bold: bool,
+    italic: bool,
+    strike: bool,
+    code: bool,
+}
+
+impl Style {
+    fn bold(self) -> Self {
+        Self { bold: true, ..self }
+    }
+
+    fn italic(self) -> Self {
+        Self { italic: true, ..self }
+    }
+
+    fn strike(self) -> Self {
+        Self { strike: true, ..self }
+    }
+
+    fn code(self) -> Self {
+        Self { code: true, ..self }
+    }
+
+    /// Serializes to a Slack style object, or `None` when no style is active so the `style`
+    /// key can be omitted entirely.
+    fn to_value(self) -> Option<Value> {
+        if !(self.bold || self.italic || self.strike || self.code) {
+            return None;
+        }
+        let mut value = serde_json::Map::new();
+        if self.bold {
+            value.insert("bold".to_string(), Value::Bool(true));
+        }
+        if self.italic {
+            value.insert("italic".to_string(), Value::Bool(true));
+        }
+        if self.strike {
+            value.insert("strike".to_string(), Value::Bool(true));
+        }
+        if self.code {
+            value.insert("code".to_string(), Value::Bool(true));
+        }
+        Some(Value::Object(value))
     }
 }
