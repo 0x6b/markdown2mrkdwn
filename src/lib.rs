@@ -219,6 +219,14 @@ Another paragraph.
         );
         test!(thematic_breaks, "---", "----------");
         test!(
+            tables,
+            "| Name | Score |\n|------|------:|\n| **Alice** | 10 |\n| [Bob](https://b.com) | 7 |",
+            "| Name | Score |\\n| *Alice* | 10 |\\n| <https://b.com|Bob> | 7 |"
+        );
+        test!(image, "![logo](https://x.com/l.png \"Logo\")", "<https://x.com/l.png|logo>");
+        test!(image_without_alt, "![](https://x.com/bare.png)", "<https://x.com/bare.png>");
+        test!(footnotes, "Text[^note].\n\n[^note]: The body.", "Text[^note].\\n[^note]: The body.");
+        test!(
             task_lists,
             "- [ ] First\n- [x] Second\n- [ ] Third",
             "\u{2610}   First\\n\u{2611}   Second\\n\u{2610}   Third"

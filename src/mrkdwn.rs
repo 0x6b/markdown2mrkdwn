@@ -104,9 +104,21 @@ impl<'a> Mrkdwn<'a> {
                 Node::Code(n) => Self::surround_with(&Self::escape(&n.value), "```\n", "\n```\n"),
                 Node::Delete(n) => self.surround_nodes_with(&n.children, "~", "~", indent_level),
                 Node::Emphasis(n) => self.surround_nodes_with(&n.children, "_", "_", indent_level),
+                Node::FootnoteReference(n) => {
+                    format!("[^{}]", Self::footnote_label(&n.identifier, &n.label))
+                }
+                Node::FootnoteDefinition(n) => {
+                    let body = self.transform_to_mrkdwn_with_indent(&n.children, indent_level);
+                    format!(
+                        "[^{}]: {}\n",
+                        Self::footnote_label(&n.identifier, &n.label),
+                        body.trim()
+                    )
+                }
                 Node::Heading(n) => {
                     self.surround_nodes_with(&n.children, "*", "*\n\n", indent_level)
                 }
+                Node::Image(n) => Self::image_to_link(n),
                 Node::InlineCode(n) => Self::surround_with(&Self::escape(&n.value), "`", "`"),
                 Node::Link(n) => format!(
                     "<{}|{}>",
@@ -119,6 +131,7 @@ impl<'a> Mrkdwn<'a> {
                 }
                 Node::Paragraph(n) => self.surround_nodes_with(&n.children, "", "\n", indent_level),
                 Node::Strong(n) => self.surround_nodes_with(&n.children, "*", "*", indent_level),
+                Node::Table(n) => self.table_to_text(n, indent_level),
                 Node::Text(n) => Self::escape(&n.value),
                 Node::ThematicBreak(_) => "\n----------\n".to_string(),
                 _ => String::new(),
@@ -144,6 +157,14 @@ impl<'a> Mrkdwn<'a> {
                 }
                 Node::Emphasis(n) => {
                     vec![Section(self.surround_nodes_with(&n.children, "_", "_", 0))]
+                }
+                Node::FootnoteDefinition(n) => {
+                    let body = self.transform_to_mrkdwn(&n.children);
+                    vec![Section(format!(
+                        "[^{}]: {}\n",
+                        Self::footnote_label(&n.identifier, &n.label),
+                        body.trim()
+                    ))]
                 }
                 Node::Heading(n) => match n.depth {
                     // `header` blocks render as `plain_text`, so use the unformatted text and
@@ -317,6 +338,51 @@ impl<'a> Mrkdwn<'a> {
             image.alt.clone()
         };
         Block::Image { url: image.url.clone(), alt_text, title }
+    }
+
+    /// Renders an image as a Slack link, used in the text/`mrkdwn` output where images cannot be
+    /// embedded. Falls back to a bare `<url>` link when the image has no alt text.
+    fn image_to_link(image: &Image) -> String {
+        if image.alt.trim().is_empty() {
+            format!("<{}>", image.url)
+        } else {
+            format!("<{}|{}>", image.url, Self::escape(&image.alt))
+        }
+    }
+
+    /// Renders a table as plain pipe-delimited text, used in the text/`mrkdwn` output and
+    /// anywhere a table is nested inside other inline content.
+    fn table_to_text(&self, table: &Table, indent_level: usize) -> String {
+        let rows: Vec<String> = table
+            .children
+            .iter()
+            .filter_map(|row| match row {
+                Node::TableRow(row) => {
+                    let cells: Vec<String> = row
+                        .children
+                        .iter()
+                        .map(|cell| {
+                            let children = match cell {
+                                Node::TableCell(cell) => cell.children.as_slice(),
+                                _ => &[][..],
+                            };
+                            self.transform_to_mrkdwn_with_indent(children, indent_level)
+                                .trim()
+                                .to_string()
+                        })
+                        .collect();
+                    Some(format!("| {} |", cells.join(" | ")))
+                }
+                _ => None,
+            })
+            .collect();
+        format!("{}\n", rows.join("\n"))
+    }
+
+    /// Returns the display label for a footnote, preferring the original `label` (which keeps the
+    /// author's casing) and falling back to the normalized `identifier`.
+    fn footnote_label(identifier: &str, label: &Option<String>) -> String {
+        label.clone().unwrap_or_else(|| identifier.to_string())
     }
 
     /// Builds a single `rich_text` table cell from inline Markdown nodes.
