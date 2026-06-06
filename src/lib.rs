@@ -99,6 +99,11 @@ mod test {
         );
         test!(thematic_breaks, "---", r#"{ "blocks": [ { "type": "divider" } ] }"#);
         test!(
+            tables,
+            "| Name | Link |\n|:-----|-----:|\n| **bold** | [Slack](https://slack.com) |",
+            r#"{ "blocks": [ { "type": "table", "column_settings": [ { "align": "left" }, { "align": "right" } ], "rows": [ [ { "type": "rich_text", "elements": [ { "type": "rich_text_section", "elements": [ { "type": "text", "text": "Name" } ] } ] }, { "type": "rich_text", "elements": [ { "type": "rich_text_section", "elements": [ { "type": "text", "text": "Link" } ] } ] } ], [ { "type": "rich_text", "elements": [ { "type": "rich_text_section", "elements": [ { "type": "text", "text": "bold", "style": { "bold": true } } ] } ] }, { "type": "rich_text", "elements": [ { "type": "rich_text_section", "elements": [ { "type": "link", "url": "https://slack.com", "text": "Slack" } ] } ] } ] ] } ] }"#
+        );
+        test!(
             task_lists,
             "- [ ] First\n- [x] Second\n- [ ] Third",
             r#"{ "blocks": [ { "text": { "text": "☐   First\n☑   Second\n☐   Third\n\n", "type": "mrkdwn" }, "type": "section" } ] }"#
